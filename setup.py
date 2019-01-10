@@ -27,8 +27,9 @@ requirements = [
     'async-timeout',
     'cchardet',
     'aiodns',
+]
 
-
+extras = [
     'asynctest',
     'pytest-asyncio',
     'pytest-mock',
