@@ -1,9 +1,13 @@
 from queue import Queue
+from collections import namedtuple
 
 import asyncio
 import aiohttp
 import itertools
 import threading
+
+
+Response = namedtuple('Response', ['status', 'reason', 'text', 'json'])
 
 
 STOP_SENTINEL = {}
@@ -22,7 +26,12 @@ def grouper(n, iterable):
 async def send(client, request):
     ''' Handles a single request '''
     async with client.get(request) as response:
-        return await response.text()
+        return Response(
+            status=response.status,
+            reason=response.reason,
+            text=await response.text(),
+            json=await response.json(),
+        )
 
 
 async def send_chunk(client, requests):
@@ -91,3 +100,14 @@ def streamer(requests, concurrency_limit=1000):
 
     threading.Thread(name='worker', target=worker, args=(loop, pending_tasks)).start()
     return response_generator(sync_queue)
+
+
+if __name__ == '__main__':
+    urls = [
+        'https://postman-echo.com/get?foo1=bar1&foo2=bar2',
+        'https://postman-echo.com/get?foo3=bar3&foo4=bar4'
+    ]
+    responses = streamer(urls)
+    for r in responses:
+        print(r.status, r.reason, r.json)
+        print()
