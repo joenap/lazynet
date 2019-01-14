@@ -7,7 +7,7 @@ import itertools
 import threading
 
 
-Response = namedtuple('Response', ['status', 'reason', 'text', 'json'])
+Response = namedtuple('Response', ['request', 'status', 'reason', 'text', 'json'])
 
 
 STOP_SENTINEL = {}
@@ -27,6 +27,7 @@ async def send(client, request):
     ''' Handles a single request '''
     async with client.get(request) as response:
         return Response(
+            request=request,
             status=response.status,
             reason=response.reason,
             text=await response.text(),
@@ -97,5 +98,5 @@ if __name__ == '__main__':
     ]
     responses = streamer(urls)
     for r in responses:
-        print(r.status, r.reason, r.json)
+        print(r)
         print()
