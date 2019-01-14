@@ -85,9 +85,7 @@ def streamer(requests, concurrency_limit=1000):
 
     loop = asyncio.get_event_loop()
     loop.create_task(send_stream(requests, async_queue, sync_queue, concurrency_limit))
-
     pending_tasks = asyncio.Task.all_tasks()
-
     threading.Thread(name='worker', target=worker, args=(loop, pending_tasks)).start()
     return response_generator(sync_queue)
 
