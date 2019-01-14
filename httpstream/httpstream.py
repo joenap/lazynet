@@ -40,23 +40,23 @@ async def send_chunk(client, requests):
     return await asyncio.gather(*tasks)
 
 
-async def send_stream(requests, async_queue, concurrency_limit):
+async def send_stream(requests, async_queue, sync_queue, concurrency_limit):
     ''' Handles a stream of requests and pushes responses to a queue '''
     async with aiohttp.ClientSession() as client:
         for event_chunk in grouper(concurrency_limit, requests):
             responses = await send_chunk(client, event_chunk)
             for response in responses:
-                await async_queue.put(response)
-        await async_queue.put(STOP_SENTINEL)
+                sync_queue.put(response)
+        sync_queue.put(STOP_SENTINEL)
 
 
-async def receive_stream(sync_queue, async_queue):
-    ''' Receives asynchronous responses and pushes them to a standard queue '''
-    while True:
-        response = await async_queue.get()
-        sync_queue.put(response)
-        if response is STOP_SENTINEL:
-            break
+# async def receive_stream(sync_queue, async_queue):
+#     ''' Receives asynchronous responses and pushes them to a standard queue '''
+#     while True:
+#         response = await async_queue.get()
+#         sync_queue.put(response)
+#         if response is STOP_SENTINEL:
+#             break
 
 
 def response_generator(sync_queue):
@@ -93,8 +93,8 @@ def streamer(requests, concurrency_limit=1000):
     sync_queue = Queue(concurrency_limit)
 
     loop = asyncio.get_event_loop()
-    loop.create_task(receive_stream(sync_queue, async_queue))
-    loop.create_task(send_stream(requests, async_queue, concurrency_limit))
+    # loop.create_task(receive_stream(sync_queue, async_queue))
+    loop.create_task(send_stream(requests, async_queue, sync_queue, concurrency_limit))
 
     pending_tasks = asyncio.Task.all_tasks()
 
