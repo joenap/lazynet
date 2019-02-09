@@ -6,6 +6,9 @@ import aiohttp
 import itertools
 import threading
 
+# todo check out aiodns resolver
+# https://stackoverflow.com/a/45169094/1102470
+
 Response = namedtuple('Response', ['request', 'status', 'reason', 'text', 'json'])
 
 # Used to flush the response queue and stop the iterator.
