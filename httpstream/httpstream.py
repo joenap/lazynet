@@ -14,7 +14,7 @@ STOP_SENTINEL = {}
 
 
 def grouper(n, iterable):
-    ''' Yields successive lists of size n from iterable'''
+    """ Yields successive lists of size n from iterable"""
     it = iter(iterable)
     while True:
         chunk = tuple(itertools.islice(it, n))
@@ -24,7 +24,7 @@ def grouper(n, iterable):
 
 
 async def send(client, request):
-    ''' Handles a single request '''
+    """ Handles a single request """
     async with client.get(request) as response:
         return Response(
             request=request,
@@ -36,13 +36,13 @@ async def send(client, request):
 
 
 async def send_chunk(client, requests):
-    ''' Handles a chunk of requests asynchronously '''
+    """ Handles a chunk of requests asynchronously """
     tasks = (asyncio.ensure_future(send(client, r)) for r in requests)
     return await asyncio.gather(*tasks)
 
 
-async def send_stream(requests, async_queue, sync_queue, concurrency_limit):
-    ''' Handles a stream of requests and pushes responses to a queue '''
+async def send_stream(requests, sync_queue, concurrency_limit):
+    """ Handles a stream of requests and pushes responses to a queue """
     async with aiohttp.ClientSession() as client:
         for event_chunk in grouper(concurrency_limit, requests):
             responses = await send_chunk(client, event_chunk)
@@ -52,7 +52,7 @@ async def send_stream(requests, async_queue, sync_queue, concurrency_limit):
 
 
 def response_generator(sync_queue):
-    ''' Wrap a standard queue with a generator '''
+    """ Wrap a standard queue with a generator """
     while True:
         response = sync_queue.get()
         if response is STOP_SENTINEL:
@@ -66,7 +66,7 @@ def worker(loop, pending_tasks):
 
 
 def streamer(requests, concurrency_limit=1000):
-    '''
+    """
     Returns a generator of HTTP responses for the given generator of HTTP requests.
 
     Results are returned in the same order as received.
@@ -80,12 +80,12 @@ def streamer(requests, concurrency_limit=1000):
         urls = (f"http://my.company/{i}" for i in range(10))
         responses = streamer(urls)
         data = (my_transform_function(r) for r in responses)
-    '''
+    """
     async_queue = asyncio.Queue(concurrency_limit)
     sync_queue = Queue(concurrency_limit)
 
     loop = asyncio.get_event_loop()
-    loop.create_task(send_stream(requests, async_queue, sync_queue, concurrency_limit))
+    loop.create_task(send_stream(requests, sync_queue, concurrency_limit))
     pending_tasks = asyncio.Task.all_tasks()
     threading.Thread(name='worker', target=worker, args=(loop, pending_tasks)).start()
     return response_generator(sync_queue)
