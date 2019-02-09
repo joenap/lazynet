@@ -14,7 +14,7 @@ STOP_SENTINEL = {}
 
 
 def grouper(n, iterable):
-    """ Yields successive lists of size n from iterable"""
+    """ Yields successive lists of size n from iterable """
     it = iter(iterable)
     while True:
         chunk = tuple(itertools.islice(it, n))
@@ -81,7 +81,6 @@ def streamer(requests, concurrency_limit=1000):
         responses = streamer(urls)
         data = (my_transform_function(r) for r in responses)
     """
-    async_queue = asyncio.Queue(concurrency_limit)
     sync_queue = Queue(concurrency_limit)
 
     loop = asyncio.get_event_loop()
