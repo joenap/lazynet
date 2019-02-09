@@ -1,19 +1,28 @@
 from aiohttp import ClientSession, ClientResponse
 from asynctest import CoroutineMock, patch
+
 from httpstream import httpstream
 
-URL = 'url'
+REQUEST = 'url'
 DATA = b'data'
 
+RESPONSE = httpstream.Response(
+    request=REQUEST,
+    status=200,
+    reason='ok',
+    text='',
+    json={},
+)
 
-@patch('aiohttp.ClientSession.get')
-async def test_should_return_response_on_200(mock_get, event_loop):
+
+@patch('aiohttp.ClientSession.get', autospec=True)
+async def test_send_should_call_client_get_with_request(mock_get, event_loop):
     mock_get.return_value.__aenter__.return_value = CoroutineMock(status=200, spec=ClientResponse)
 
     async with ClientSession(loop=event_loop) as client:
-        await httpstream.send(client, URL)
+        await httpstream.send(client, REQUEST)
 
-    mock_get.assert_called_once_with(URL)
+    mock_get.assert_called_once_with(client, REQUEST)
 
 # @patch('aiohttp.ClientSession.post')
 # async def test_should_return_response_on_200(mock_post, event_loop):

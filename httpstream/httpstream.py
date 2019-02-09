@@ -6,10 +6,9 @@ import aiohttp
 import itertools
 import threading
 
-
 Response = namedtuple('Response', ['request', 'status', 'reason', 'text', 'json'])
 
-
+# Used to flush the response queue and stop the iterator.
 STOP_SENTINEL = {}
 
 
@@ -44,6 +43,7 @@ async def send_chunk(client, requests):
 async def send_stream(requests, sync_queue, concurrency_limit):
     """ Handles a stream of requests and pushes responses to a queue """
     async with aiohttp.ClientSession() as client:
+        # Gather responses in chunks of size concurrency_limit
         for event_chunk in grouper(concurrency_limit, requests):
             responses = await send_chunk(client, event_chunk)
             for response in responses:

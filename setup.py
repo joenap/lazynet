@@ -22,11 +22,12 @@ The full documentation is at http://httpstream.rtfd.org."""
 history = open('HISTORY.rst').read().replace('.. :changelog:', '')
 
 requirements = [
-    'aiohttp',
+    'aiohttp<4',
     'asyncio',
     'async-timeout',
     'cchardet',
-    'aiodns',
+    'aiodns<2',
+    'pycares<3',
 ]
 
 extras = [
