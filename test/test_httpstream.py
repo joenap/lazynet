@@ -17,7 +17,7 @@ RESPONSE = httpstream.Response(
 
 @patch('aiohttp.ClientSession.get', autospec=True)
 async def test_send_should_call_client_get_with_request(mock_get, event_loop):
-    mock_get.return_value.__aenter__.return_value = CoroutineMock(status=200, spec=ClientResponse)
+    mock_get.return_value.__aenter__.return_value = CoroutineMock(spec=ClientResponse)
 
     async with ClientSession(loop=event_loop) as client:
         await httpstream.send(client, REQUEST)
