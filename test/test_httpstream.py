@@ -6,13 +6,13 @@ from httpstream import httpstream
 REQUEST = 'url'
 DATA = b'data'
 
-RESPONSE = httpstream.Response(
-    request=REQUEST,
-    status=200,
-    reason='ok',
-    text='',
-    json={},
-)
+RESPONSE_ATTRS = {
+    'request': REQUEST,
+    'status': 200,
+    'reason': 'ok',
+    'text.return_value': '',
+    'json.return_value': {}
+}
 
 
 @patch('aiohttp.ClientSession.get', autospec=True)
@@ -24,22 +24,52 @@ async def test_send_should_call_client_get_with_request(mock_get, event_loop):
 
     mock_get.assert_called_once_with(client, REQUEST)
 
-# @patch('aiohttp.ClientSession.post')
-# async def test_should_return_response_on_200(mock_post, event_loop):
-#     mock_post.return_value.__aenter__.return_value = CoroutineMock(status=200, spec=ClientResponse)
-#
-#     async with ClientSession(loop=event_loop) as session:
-#         await httpstream.post2(session, URL, DATA)
-#
-#     mock_post.assert_called_once_with(URL, data=DATA)
 
-# @patch('aiohttp.ClientSession.post')
-# async def test_should_print_error_when_not_200(mock_post, event_loop):
-#     mock_post.return_value.__aenter__.return_value = CoroutineMock(status=404, spec=ClientResponse)
-#     mock_post.return_value.__aenter__.return_value.read = CoroutineMock(return_value={'message': 'a message'})
-#
-#     async with ClientSession(loop=event_loop) as session:
-#         await httpstream.post2(session, URL, DATA)
-#
-#     mock_post.assert_called_once_with(URL, data=DATA)
-#     # Assert that something was done with the error
+@patch('aiohttp.ClientSession.get', autospec=True)
+async def test_response_should_have_request(mock_get, event_loop):
+    mock_get.return_value.__aenter__.return_value = CoroutineMock(**RESPONSE_ATTRS, spec=ClientResponse)
+
+    async with ClientSession(loop=event_loop) as client:
+        response = await httpstream.send(client, REQUEST)
+
+    assert response.request is RESPONSE_ATTRS['request']
+
+
+@patch('aiohttp.ClientSession.get', autospec=True)
+async def test_response_should_have_status(mock_get, event_loop):
+    mock_get.return_value.__aenter__.return_value = CoroutineMock(**RESPONSE_ATTRS, spec=ClientResponse)
+
+    async with ClientSession(loop=event_loop) as client:
+        response = await httpstream.send(client, REQUEST)
+
+    assert response.status == RESPONSE_ATTRS['status']
+
+
+@patch('aiohttp.ClientSession.get', autospec=True)
+async def test_response_should_have_reason(mock_get, event_loop):
+    mock_get.return_value.__aenter__.return_value = CoroutineMock(**RESPONSE_ATTRS, spec=ClientResponse)
+
+    async with ClientSession(loop=event_loop) as client:
+        response = await httpstream.send(client, REQUEST)
+
+    assert response.reason == RESPONSE_ATTRS['reason']
+
+
+@patch('aiohttp.ClientSession.get', autospec=True)
+async def test_response_should_have_text(mock_get, event_loop):
+    mock_get.return_value.__aenter__.return_value = CoroutineMock(**RESPONSE_ATTRS, spec=ClientResponse)
+
+    async with ClientSession(loop=event_loop) as client:
+        response = await httpstream.send(client, REQUEST)
+
+    assert response.text == RESPONSE_ATTRS['text.return_value']
+
+
+@patch('aiohttp.ClientSession.get', autospec=True)
+async def test_response_should_have_json(mock_get, event_loop):
+    mock_get.return_value.__aenter__.return_value = CoroutineMock(**RESPONSE_ATTRS, spec=ClientResponse)
+
+    async with ClientSession(loop=event_loop) as client:
+        response = await httpstream.send(client, REQUEST)
+
+    assert response.json is RESPONSE_ATTRS['json.return_value']
