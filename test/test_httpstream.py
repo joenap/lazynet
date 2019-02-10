@@ -76,6 +76,18 @@ def test_should_return_1_for_1_response(mock_get):
 
 
 @patch('aiohttp.ClientSession.get', autospec=True)
-def test_should_return_1_for_1_response(mock_get):
-    mock_get.return_value.__aenter__.return_value = CoroutineMock(**RESPONSE_ATTRS, spec=ClientResponse)
-    assert len(list(httpstream.streamer(['url']))) == 1
+def test_should_return_0_for_0_when_chained(mock_get):
+    mock_get.return_value.__aenter__.return_value = CoroutineMock(spec=ClientResponse)
+    responses = httpstream.streamer([])
+    requests = (r.request for r in httpstream.streamer(responses))
+    responses2 = httpstream.streamer(requests)
+    assert len(list(responses2)) == 0
+
+
+@patch('aiohttp.ClientSession.get', autospec=True)
+def test_should_return_1_for_1_when_chained(mock_get):
+    mock_get.return_value.__aenter__.return_value = CoroutineMock(spec=ClientResponse)
+    responses = httpstream.streamer(['url'])
+    requests = (r.request for r in httpstream.streamer(responses))
+    responses2 = httpstream.streamer(requests)
+    assert len(list(responses2)) == 1
