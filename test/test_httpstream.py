@@ -73,3 +73,15 @@ async def test_response_should_have_json(mock_get, event_loop):
         response = await httpstream.send(client, REQUEST)
 
     assert response.json is RESPONSE_ATTRS['json.return_value']
+
+
+@patch('aiohttp.ClientSession.get', autospec=True)
+def test_should_return_0_for_0_response(mock_get):
+    mock_get.return_value.__aenter__.return_value = CoroutineMock(**RESPONSE_ATTRS, spec=ClientResponse)
+    assert len(list(httpstream.streamer([]))) == 0
+
+
+@patch('aiohttp.ClientSession.get', autospec=True)
+def test_should_return_1_for_1_response(mock_get):
+    mock_get.return_value.__aenter__.return_value = CoroutineMock(**RESPONSE_ATTRS, spec=ClientResponse)
+    assert len(list(httpstream.streamer(['url']))) == 1
