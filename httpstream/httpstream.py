@@ -1,5 +1,6 @@
 from queue import Queue
 from collections import namedtuple
+from tornado.platform.asyncio import AnyThreadEventLoopPolicy
 
 import asyncio
 import aiohttp
@@ -58,7 +59,7 @@ def response_generator(sync_queue):
     while True:
         response = sync_queue.get()
         if response is STOP_SENTINEL:
-            raise StopIteration
+            return
         yield response
 
 
@@ -85,6 +86,7 @@ def streamer(requests, concurrency_limit=1000):
     """
     sync_queue = Queue(concurrency_limit)
 
+    asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
     loop = asyncio.get_event_loop()
     loop.create_task(send_stream(requests, sync_queue, concurrency_limit))
     pending_tasks = asyncio.Task.all_tasks()

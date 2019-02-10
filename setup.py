@@ -28,6 +28,7 @@ requirements = [
     'cchardet',
     'aiodns<2',
     'pycares<3',
+    'tornado<6',
 ]
 
 extras = [
