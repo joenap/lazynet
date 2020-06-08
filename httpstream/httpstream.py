@@ -7,10 +7,13 @@ import aiohttp
 import itertools
 import threading
 
+# todo remove
+import simplestopwatch as sw
+
 # todo check out aiodns resolver
 # https://stackoverflow.com/a/45169094/1102470
 
-Response = namedtuple('Response', ['request', 'status', 'reason', 'text', 'json'])
+Response = namedtuple('Response', ['request', 'status', 'reason', 'text'])
 
 # Used to flush the response queue and stop the iterator.
 STOP_SENTINEL = {}
@@ -34,7 +37,7 @@ async def send(client, request):
             status=response.status,
             reason=response.reason,
             text=await response.text(),
-            json=await response.json(),
+            # json=await response.json(),
         )
 
 
@@ -94,12 +97,33 @@ def streamer(requests, concurrency_limit=1000):
     return response_generator(sync_queue)
 
 
+# if __name__ == '__main__':
+#     urls = [
+#         'https://postman-echo.com/get?foo1=bar1&foo2=bar2',
+#         'https://postman-echo.com/get?foo3=bar3&foo4=bar4'
+#     ]
+#     responses = streamer(urls)
+#     for r in responses:
+#         print(r)
+#         print()
+
+NUM_URLS = 1000
+
+
+def urls_gen():
+    for _ in range(NUM_URLS):
+        yield 'http://localhost:8080/'
+
+
 if __name__ == '__main__':
-    urls = [
-        'https://postman-echo.com/get?foo1=bar1&foo2=bar2',
-        'https://postman-echo.com/get?foo3=bar3&foo4=bar4'
-    ]
-    responses = streamer(urls)
+    print("Running main")
+    timer = sw.Timer()
+    responses = streamer(urls_gen())
     for r in responses:
-        print(r)
-        print()
+        pass
+    timer.stop()
+    print()
+    print("Time elapsed:", timer.elapsed)
+    print("Human time:", timer.elapsed_human)
+    print("Rate:", NUM_URLS / timer.elapsed)
+    print("Ending main")
