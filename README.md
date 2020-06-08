@@ -9,15 +9,15 @@ Suppose you are lazily reading IDs from a source, to be used in HTTP requests:
 
 ```
 def lazy_ids():
-	for id in range(10):
-		yield id
+    for id in range(10):
+        yield id
 ```
 
 You create a url using each individual ID:
 
 ```
 def my_url(id):
-	return f'http://localhost/object/{id}'
+    return f'http://localhost/object/{id}'
 ```
 
 Now you can make the HTTP lazily using Python generators:
@@ -29,7 +29,7 @@ urls = (my_url(id) for id in lazy_ids())
 responses = httpstream.streamer(urls) # responses is a generator
 
 for response in responses: # nothing is evaluated until this loop
-	print(response.code)
+    print(response.code)
 ```
 
 
