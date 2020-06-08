@@ -20,7 +20,7 @@ def my_url(id):
     return f'http://localhost/object/{id}'
 ```
 
-Now you can make the HTTP lazily using Python generators:
+Now you can make the HTTP request lazily using Python generators:
 
 ```
 import httpstream
