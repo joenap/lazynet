@@ -5,12 +5,13 @@ It is built using Python's new `asyncio` and `aiohttp` libraries, using coroutin
 
 ## Usage
 
-Suppose you are lazily reading IDs from a source, to be used in HTTP requests:
+Suppose you are lazily reading IDs from a flat file, to be used in HTTP requests:
 
 ```
-def lazy_ids():
-    for id in range(10):
-        yield id
+def ids():
+    with open('ids_short.txt') as fin:
+        for line in fin:
+        yield line.strip()
 ```
 
 You create a url using each individual ID:
