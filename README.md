@@ -9,7 +9,7 @@ Suppose you are lazily reading IDs from a flat file, to be used in HTTP requests
 
 ```
 def ids():
-    with open('ids_short.txt') as fin:
+    with open('file.txt') as fin:
         for line in fin:
         yield line.strip()
 ```
