@@ -97,16 +97,6 @@ def streamer(requests, concurrency_limit=1000):
     return response_generator(sync_queue)
 
 
-# if __name__ == '__main__':
-#     urls = [
-#         'https://postman-echo.com/get?foo1=bar1&foo2=bar2',
-#         'https://postman-echo.com/get?foo3=bar3&foo4=bar4'
-#     ]
-#     responses = streamer(urls)
-#     for r in responses:
-#         print(r)
-#         print()
-
 NUM_URLS = 1000
 
 
