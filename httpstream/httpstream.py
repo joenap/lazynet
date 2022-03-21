@@ -37,7 +37,7 @@ async def send(client, request):
             status=response.status,
             reason=response.reason,
             text=await response.text(),
-            # json=await response.json(),
+            json=await response.json(),
         )
 
 

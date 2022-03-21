@@ -9,26 +9,16 @@ except ImportError:
     from distutils.core import setup
 
 
-if sys.argv[-1] == 'publish':
-    os.system('python setup.py sdist upload')
-    sys.exit()
-
-readme = open('README.rst').read()
-doclink = """
-Documentation
--------------
-
-The full documentation is at http://httpstream.rtfd.org."""
 history = open('HISTORY.rst').read().replace('.. :changelog:', '')
 
 requirements = [
-    'aiohttp<4',
-    'asyncio',
-    'async-timeout',
+    'aiohttp',
+    # 'asyncio',
+    'async-timeout<4',
     'cchardet',
-    'aiodns<2',
-    'pycares<3',
-    'tornado<6',
+    'aiodns',
+    'pycares',
+    'tornado',
 ]
 
 extras = [
@@ -43,7 +33,6 @@ extras = [
     'ipython',
     'flake8',
     'pprintpp',
-    'pex',
     'pytest-runner',
     'pytest',
     'tox',
@@ -51,11 +40,13 @@ extras = [
     'bumpversion',
 ]
 
+description = 'Map HTTP requests over a generator'
+
 setup(
     name='httpstream',
     version='0.1.0',
-    description='Map HTTP requests over a generator',
-    long_description=readme + '\n\n' + doclink + '\n\n' + history,
+    description=description,
+    long_description=description,
     author='Joe Nap',
     author_email='joenap@gmail.com',
     url='https://github.com/joenap/httpstream',

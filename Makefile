@@ -6,10 +6,6 @@ help:
 
 ##@ Dev
 
-bootstrap: ## bootstrap the environment
-	pipenv --python 3.6
-	# pipenv run pip install pip==18.0
-
 install: ## install the package in dev (editable) mode
 	pipenv run python setup.py develop
 	pipenv run pip install -r requirements.txt
