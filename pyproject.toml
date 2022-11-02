@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "httpstream"
+version = "0.2.0"
+description = "Perform lazy-evaluated HTTP requests"
+authors = ["Joe Nap"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+aiohttp = "^3.8.3"
+asyncio = "^3.4.3"
+async-timeout = "^4.0.2"
+cchardet = "^2.1.7"
+aiodns = "^3.0.0"
+pycares = "^4.2.2"
+tornado = "^6.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
