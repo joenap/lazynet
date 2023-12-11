@@ -7,9 +7,6 @@ import aiohttp
 import itertools
 import threading
 
-# todo remove
-import simplestopwatch as sw
-
 # todo check out aiodns resolver
 # https://stackoverflow.com/a/45169094/1102470
 
@@ -92,7 +89,7 @@ def streamer(requests, concurrency_limit=1000):
     asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
     loop = asyncio.get_event_loop()
     loop.create_task(send_stream(requests, sync_queue, concurrency_limit))
-    pending_tasks = asyncio.Task.all_tasks()
+    pending_tasks = asyncio.all_tasks()
     threading.Thread(name='worker', target=worker, args=(loop, pending_tasks)).start()
     return response_generator(sync_queue)
 
@@ -107,13 +104,11 @@ def urls_gen():
 
 if __name__ == '__main__':
     print("Running main")
-    timer = sw.Timer()
     responses = streamer(urls_gen())
     for r in responses:
         pass
-    timer.stop()
     print()
-    print("Time elapsed:", timer.elapsed)
-    print("Human time:", timer.elapsed_human)
-    print("Rate:", NUM_URLS / timer.elapsed)
+    # print("Time elapsed:", timer.elapsed)
+    # print("Human time:", timer.elapsed_human)
+    # print("Rate:", NUM_URLS / timer.elapsed)
     print("Ending main")
