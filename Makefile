@@ -7,8 +7,10 @@ help:
 ##@ Dev
 
 install: ## install the package in dev (editable) mode
-	pipenv run python setup.py develop
-	pipenv run pip install -r requirements.txt
+    poetry install
+
+lock: ## lock poetry dependencies
+    poetry lock
 
 test: ## run unit tests
 	pipenv run py.test

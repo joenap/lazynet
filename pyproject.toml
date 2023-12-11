@@ -9,7 +9,6 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 aiohttp = "^3.8.3"
-asyncio = "^3.4.3"
 async-timeout = "^4.0.2"
 cchardet = "^2.1.7"
 aiodns = "^3.0.0"
