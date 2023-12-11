@@ -7,10 +7,10 @@ help:
 ##@ Dev
 
 install: ## install the package in dev (editable) mode
-    poetry install
+	poetry install
 
 lock: ## lock poetry dependencies
-    poetry lock
+	poetry lock
 
 test: ## run unit tests
 	pipenv run py.test
