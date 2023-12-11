@@ -9,6 +9,16 @@ except ImportError:
     from distutils.core import setup
 
 
+if sys.argv[-1] == 'publish':
+    os.system('python setup.py sdist upload')
+    sys.exit()
+
+readme = open('README.md').read()
+doclink = """
+Documentation
+-------------
+
+The full documentation is at http://httpstream.rtfd.org."""
 history = open('HISTORY.rst').read().replace('.. :changelog:', '')
 
 requirements = [
