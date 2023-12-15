@@ -2,7 +2,7 @@ import os
 import httpstream
 import time
 
-NUM_URLS = 100000
+NUM_URLS = 1000
 
 
 def urls_gen():

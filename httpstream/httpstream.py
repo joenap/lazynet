@@ -30,16 +30,24 @@ def grouper(n, iterable):
         yield chunk
 
 
-async def send(client, request):
+async def send(client, request, max_retries=3, retry_interval=1):
     """ Handles a single request """
-    async with client.get(request) as response:
-        return Response(
-            request=request,
-            status=response.status,
-            reason=response.reason,
-            text=await response.text(),
-            json=await response.json(),
-        )
+    for attempt in range(max_retries + 1):
+        try:
+            async with client.get(request) as response:
+                return Response(
+                    request=request,
+                    status=response.status,
+                    reason=response.reason,
+                    text=await response.text(),
+                    json=await response.json(),
+                )
+        except aiohttp.ClientError as e:
+            if attempt < max_retries:
+                print(f"Error: {e}. Retrying in {retry_interval} seconds...")
+                await asyncio.sleep(retry_interval)
+            else:
+                return None
 
 
 async def send_chunk(client, requests):
