@@ -44,7 +44,7 @@ async def send(client, request, max_retries=3, retry_interval=1):
                 )
         except aiohttp.ClientError as e:
             if attempt < max_retries:
-                print(f"Error: {e}. Retrying in {retry_interval} seconds...")
+                print(f"Error: {e} when requesting {request}. Attempt #{attempt}")
                 await asyncio.sleep(retry_interval)
             else:
                 return None
