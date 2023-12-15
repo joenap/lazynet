@@ -49,6 +49,9 @@ clean-test: ## remove test and coverage artifacts
 	@rm -fr htmlcov/
 	@rm -fr .pytest_cache
 
+docker: ## build docker image
+	docker build -t httpstream .
+
 ##@ Distribute
 
 dist: ## build the source and wheel packages
