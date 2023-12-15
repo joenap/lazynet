@@ -42,3 +42,6 @@ output/*/index.html
 docs/_build
 /htmlcov
 *.txt
+*.tmp
+*.jsonl
+*.json
