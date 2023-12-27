@@ -13,9 +13,6 @@ async-timeout = "^4.0"
 #cchardet = "^2.1"
 aiodns = "^3.1"
 pycares = "^4.4"
-#tornado = "^6.4"
-pyspark = "^3.5.0"
-requests = "^2.31.0"
 
 [tool.poetry.group.dev.dependencies]
 #asynctest = "^0.13.0"
