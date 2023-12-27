@@ -1,11 +1,10 @@
 import sys
 
-# import httpstream
-from httpstream.httpstream import streamer
+import httpstream
 
 import time
 
-NUM_URLS = 3000
+NUM_URLS = 3
 
 
 def urls_gen():
@@ -14,15 +13,11 @@ def urls_gen():
 
 
 if __name__ == '__main__':
-    # httpstream.httpstream.streamer()
-    print(sys.path)
     start = time.time()
-    # responses = httpstream.streamer(urls_gen(), concurrency_limit=1000)
-    # for r in responses:
-    #     print(r)
-        # pass
+    responses = httpstream.streamer(urls_gen(), concurrency_limit=1000)
+    for r in responses:
+        print(r)
     end = time.time()
-    print()
     elapsed_time = end - start
     print("Time elapsed:", elapsed_time)
     print("Rate:", NUM_URLS / elapsed_time)
