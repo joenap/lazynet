@@ -72,15 +72,12 @@ def response_generator(sync_queue, thread):
         response = sync_queue.get()
         if response is STOP_SENTINEL:
             thread.join()
-            print('Sync queue done')
             return
         yield response
 
 
 def worker(requests, sync_queue, concurrency_limit):
-    print('Starting work')
     asyncio.run(send_stream(requests, sync_queue, concurrency_limit))
-    print('Done with work')
 
 
 def streamer(requests, concurrency_limit=1000):
@@ -110,32 +107,3 @@ def streamer(requests, concurrency_limit=1000):
     t.start()
     print(f'Thread started: {t}')
     return response_generator(sync_queue, t)
-
-
-# NUM_URLS = 2
-#
-#
-# def urls_gen():
-#     for _ in range(NUM_URLS):
-#         yield 'http://ip.jsontest.com/'
-#
-#
-# if __name__ == '__main__':
-#     start = time.time()
-#     responses = streamer(urls_gen(), concurrency_limit=1000)
-#     print('Pulling responses')
-#     for r in responses:
-#         print(r)
-#         print(r.status)
-#         print(r.reason)
-#         print(r.text.strip())
-#         print(r.json)
-#         pass
-#     end = time.time()
-#     print()
-#     elapsed_time = end - start
-#     print("Time elapsed:", elapsed_time)
-#     # print("Human time:", timer.elapsed_human)
-#     print("Rate:", NUM_URLS / elapsed_time)
-#     # time.sleep(5)
-#     print("Ending main")
