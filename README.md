@@ -42,6 +42,10 @@ for response in responses: # nothing is evaluated until this loop
 ## Performance
 lazyhttp can currently achieve a rate of about 1300 requests per second.
 
-## Status
+## History
 
-lazyhttp was developed over 3 days as an experiment and proof of concept. It is considered pre-alpha status. It is not used in any production system today.
+2015: The original concept was explored [here](https://stackoverflow.com/questions/31869593/yielding-a-value-from-a-coroutine-in-python-a-k-a-convert-callback-to-generato)
+
+2019: lazyhttp was developed over 3 days in a hackathon as an experiment and proof of concept. It is considered pre-alpha status. It is not used in any production system today.
+
+2023: Updated to use current asyncio interface. Removed Tornado as a dependency, which used only for the thread policy. Considered beta now.
