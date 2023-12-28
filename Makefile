@@ -19,10 +19,10 @@ test-all: ## run tests on every Python version with tox
 	tox
 
 lint: ## check style
-	poetry run flake8 httpstream tests
+	poetry run flake8 lazyhttp tests
 
 coverage: ## check code coverage
-	poetry run coverage run --source httpstream -m pytest
+	poetry run coverage run --source lazyhttp -m pytest
 	poetry run coverage report -m
 
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts

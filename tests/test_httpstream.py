@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from aiohttp import ClientSession, ClientResponse
 
-from httpstream import httpstream
-from httpstream.httpstream import Response
+from lazyhttp import lazyhttp
+from lazyhttp.lazyhttp import Response
 
 REQUEST = 'url'
 DATA = b'data'
@@ -40,7 +40,7 @@ async def test_send_should_call_client_get_with_request(mock_get):
     event_loop = asyncio.get_running_loop()
 
     async with ClientSession(loop=event_loop) as client:
-        result = await httpstream.send(client, REQUEST)
+        result = await lazyhttp.send(client, REQUEST)
 
     mock_get.assert_called_once_with(client, REQUEST)
     assert result == expected_response
@@ -49,28 +49,28 @@ async def test_send_should_call_client_get_with_request(mock_get):
 @patch('aiohttp.ClientSession.get', autospec=True)
 def test_should_return_0_for_0_response(mock_get):
     mock_get.return_value = get_response_mock()
-    assert len(list(httpstream.streamer([]))) == 0
+    assert len(list(lazyhttp.streamer([]))) == 0
 
 
 @patch('aiohttp.ClientSession.get', autospec=True)
 def test_should_return_1_for_1_response(mock_get):
     mock_get.return_value = get_response_mock()
-    assert len(list(httpstream.streamer(['url']))) == 1
+    assert len(list(lazyhttp.streamer(['url']))) == 1
 
 
 @patch('aiohttp.ClientSession.get', autospec=True)
 def test_should_return_0_for_0_when_chained(mock_get):
     mock_get.return_value = get_response_mock()
-    responses = httpstream.streamer([])
-    requests = (r.request for r in httpstream.streamer(responses))
-    responses2 = httpstream.streamer(requests)
+    responses = lazyhttp.streamer([])
+    requests = (r.request for r in lazyhttp.streamer(responses))
+    responses2 = lazyhttp.streamer(requests)
     assert len(list(responses2)) == 0
 
 
 @patch('aiohttp.ClientSession.get', autospec=True)
 def test_should_return_1_for_1_when_chained(mock_get):
     mock_get.return_value = get_response_mock()
-    responses = httpstream.streamer(['url'])
-    requests = (r.request for r in httpstream.streamer(responses))
-    responses2 = httpstream.streamer(requests)
+    responses = lazyhttp.streamer(['url'])
+    requests = (r.request for r in lazyhttp.streamer(responses))
+    responses2 = lazyhttp.streamer(requests)
     assert len(list(responses2)) == 1
