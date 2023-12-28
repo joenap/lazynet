@@ -46,31 +46,20 @@ async def test_send_should_call_client_get_with_request(mock_get):
     assert result == expected_response
 
 
-@patch('aiohttp.ClientSession.get', autospec=True)
-def test_should_return_0_for_0_response(mock_get):
-    mock_get.return_value = get_response_mock()
-    assert len(list(lazyhttp.get([]))) == 0
+@pytest.mark.parametrize("input_list, expected_length", [([], 0), ([1], 1), ([1, 2], 2)])
+def test_should_return_expected_length_for_response(input_list, expected_length):
+    with patch('aiohttp.ClientSession.get', autospec=True) as mock_get:
+        mock_get.return_value = get_response_mock()
+        assert len(list(lazyhttp.get(input_list))) == expected_length
+        assert mock_get.call_count == expected_length
 
 
-@patch('aiohttp.ClientSession.get', autospec=True)
-def test_should_return_1_for_1_response(mock_get):
-    mock_get.return_value = get_response_mock()
-    assert len(list(lazyhttp.get(['url']))) == 1
-
-
-@patch('aiohttp.ClientSession.get', autospec=True)
-def test_should_return_0_for_0_when_chained(mock_get):
-    mock_get.return_value = get_response_mock()
-    responses = lazyhttp.get([])
-    requests = (r.request for r in lazyhttp.get(responses))
-    responses2 = lazyhttp.get(requests)
-    assert len(list(responses2)) == 0
-
-
-@patch('aiohttp.ClientSession.get', autospec=True)
-def test_should_return_1_for_1_when_chained(mock_get):
-    mock_get.return_value = get_response_mock()
-    responses = lazyhttp.get(['url'])
-    requests = (r.request for r in lazyhttp.get(responses))
-    responses2 = lazyhttp.get(requests)
-    assert len(list(responses2)) == 1
+@pytest.mark.parametrize("input_list, expected_length", [([], 0), ([1], 1), ([1, 2], 2)])
+def test_should_return_expected_length_for_chained_response(input_list, expected_length):
+    with patch('aiohttp.ClientSession.get', autospec=True) as mock_get:
+        mock_get.return_value = get_response_mock()
+        responses = lazyhttp.get(input_list)
+        chained_requests = (r.request for r in responses)
+        responses2 = lazyhttp.get(chained_requests)
+        assert len(list(responses2)) == expected_length
+        assert mock_get.call_count == expected_length * 2
