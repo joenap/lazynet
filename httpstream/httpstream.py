@@ -1,5 +1,5 @@
 from queue import Queue
-from collections import namedtuple
+# from collections import namedtuple
 
 import asyncio
 import aiohttp
@@ -8,13 +8,30 @@ import threading
 
 import time
 
+
 # todo check out aiodns resolver
 # https://stackoverflow.com/a/45169094/1102470
 
-Response = namedtuple(
-    'Response',
-    ['request', 'status', 'reason', 'text', 'json']
-)
+# Response = namedtuple(
+#     'Response',
+#     ['request', 'status', 'reason', 'text', 'json']
+# )
+
+
+class Response:
+    def __init__(self, request, status, reason, text, json):
+        self.request = request
+        self.status = status
+        self.reason = reason
+        self.text = text
+        self.json = json
+
+    def __str__(self):
+        return f"Response(request={self.request}, status={self.status}, reason={self.reason}, text={self.text}, json={self.json})"
+
+    def __eq__(self, other):
+        return isinstance(other, Response) and self.__dict__ == other.__dict__
+
 
 # Used to flush the response queue and stop the iterator.
 STOP_SENTINEL = {}
