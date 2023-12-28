@@ -34,7 +34,7 @@ class Response:
 STOP_SENTINEL = {}
 
 
-def grouper(n, iterable):
+def _grouper(n, iterable):
     """ Yields successive lists of size n from iterable """
     it = iter(iterable)
     while True:
@@ -44,7 +44,7 @@ def grouper(n, iterable):
         yield chunk
 
 
-async def send(client, request, max_retries=3, retry_interval=1):
+async def _send(client, request, max_retries=3, retry_interval=1):
     """ Handles a single request """
     for attempt in range(max_retries + 1):
         try:
@@ -65,23 +65,23 @@ async def send(client, request, max_retries=3, retry_interval=1):
                 return None
 
 
-async def send_chunk(client, requests):
+async def _send_chunk(client, requests):
     """ Handles a chunk of requests asynchronously """
-    tasks = (asyncio.ensure_future(send(client, r)) for r in requests)
+    tasks = (asyncio.ensure_future(_send(client, r)) for r in requests)
     return await asyncio.gather(*tasks)
 
 
-async def send_stream(requests, sync_queue, concurrency_limit):
+async def _send_stream(requests, sync_queue, concurrency_limit):
     """ Handles a stream of requests and pushes responses to a queue """
     async with aiohttp.ClientSession() as client:
         # Gather responses in chunks of size concurrency_limit
-        for request_chunk in grouper(concurrency_limit, requests):
-            for response in await send_chunk(client, request_chunk):
+        for request_chunk in _grouper(concurrency_limit, requests):
+            for response in await _send_chunk(client, request_chunk):
                 sync_queue.put(response)
         sync_queue.put(STOP_SENTINEL)
 
 
-def response_generator(sync_queue, thread):
+def _response_generator(sync_queue, thread):
     """ Wrap a standard queue with a generator """
     while True:
         response = sync_queue.get()
@@ -91,8 +91,8 @@ def response_generator(sync_queue, thread):
         yield response
 
 
-def worker(requests, sync_queue, concurrency_limit):
-    asyncio.run(send_stream(requests, sync_queue, concurrency_limit))
+def _worker(requests, sync_queue, concurrency_limit):
+    asyncio.run(_send_stream(requests, sync_queue, concurrency_limit))
 
 
 def get(requests, concurrency_limit=1000):
@@ -116,8 +116,8 @@ def get(requests, concurrency_limit=1000):
 
     t = threading.Thread(
         name='worker',
-        target=worker,
+        target=_worker,
         args=(requests, sync_queue, concurrency_limit)
     )
     t.start()
-    return response_generator(sync_queue, t)
+    return _response_generator(sync_queue, t)
