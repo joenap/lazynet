@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -34,8 +35,9 @@ def get_response_mock():
 
 @pytest.mark.asyncio
 @patch('aiohttp.ClientSession.get', autospec=True)
-async def test_send_should_call_client_get_with_request(mock_get, event_loop):
+async def test_send_should_call_client_get_with_request(mock_get):
     mock_get.return_value = get_response_mock()
+    event_loop = asyncio.get_running_loop()
 
     async with ClientSession(loop=event_loop) as client:
         result = await httpstream.send(client, REQUEST)
