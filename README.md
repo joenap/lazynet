@@ -10,20 +10,19 @@ It uses `asyncio` and `aiohttp` libraries, using coroutines under the hood. It a
 
 ## Usage
 
-Suppose you are lazily reading IDs from a flat file, to be used in HTTP requests:
+Suppose you are lazily reading IDs:
 
 ```
 def lazy_ids():
-    with open('file.txt') as fin:
-        for line in fin:
-            yield line.strip()
+    for i in range(10):
+        yield i
 ```
 
 You create a url using each individual ID:
 
 ```
 def my_url(id):
-    return f'http://localhost/object/{id}'
+    return f'http://my.domain/object/{id}'
 ```
 
 Now you can make the HTTP request lazily using Python generators:
@@ -46,6 +45,6 @@ lazyhttp can currently achieve a rate of about 1300 requests per second.
 
 2015: The original concept was explored [here](https://stackoverflow.com/questions/31869593/yielding-a-value-from-a-coroutine-in-python-a-k-a-convert-callback-to-generato)
 
-2019: lazyhttp was developed over 3 days in a hackathon as an experiment and proof of concept. It is considered pre-alpha status. It is not used in any production system today.
+2019: Alpha status. lazyhttp was developed over 3 days in a hackathon as an experiment and proof of concept. It is not used in any production system today.
 
-2023: Updated to use current asyncio interface. Removed Tornado as a dependency, which used only for the thread policy. Considered beta now.
+2023: Beta Status. Updated to use current asyncio interface. Removed Tornado as a dependency, which was only used for the thread policy.
