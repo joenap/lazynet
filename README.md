@@ -27,7 +27,7 @@ Now you can make the HTTP request lazily using Python generators:
 import lazyhttp
 
 urls = (my_url(id) for id in lazy_ids())
-responses = lazyhttp.streamer(urls) # responses is a generator
+responses = lazyhttp.get(urls) # responses is a generator
 
 for response in responses: # nothing is evaluated until this loop
     print(response.code)

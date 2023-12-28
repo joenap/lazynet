@@ -95,7 +95,7 @@ def worker(requests, sync_queue, concurrency_limit):
     asyncio.run(send_stream(requests, sync_queue, concurrency_limit))
 
 
-def streamer(requests, concurrency_limit=1000):
+def get(requests, concurrency_limit=1000):
     """
     Returns a generator of HTTP responses
         for the given generator of HTTP requests.
@@ -108,8 +108,8 @@ def streamer(requests, concurrency_limit=1000):
         lazy-evaluated HTTP streams.
 
     Example:
-        urls = (f"http://my.company/{i}" for i in range(10))
-        responses = streamer(urls)
+        urls = (f"https://my.domain/{i}" for i in range(10))
+        responses = lazyhttp.get(urls)
         data = (my_transform_function(r) for r in responses)
     """
     sync_queue = Queue(concurrency_limit)

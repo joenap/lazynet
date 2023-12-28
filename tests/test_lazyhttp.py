@@ -49,28 +49,28 @@ async def test_send_should_call_client_get_with_request(mock_get):
 @patch('aiohttp.ClientSession.get', autospec=True)
 def test_should_return_0_for_0_response(mock_get):
     mock_get.return_value = get_response_mock()
-    assert len(list(lazyhttp.streamer([]))) == 0
+    assert len(list(lazyhttp.get([]))) == 0
 
 
 @patch('aiohttp.ClientSession.get', autospec=True)
 def test_should_return_1_for_1_response(mock_get):
     mock_get.return_value = get_response_mock()
-    assert len(list(lazyhttp.streamer(['url']))) == 1
+    assert len(list(lazyhttp.get(['url']))) == 1
 
 
 @patch('aiohttp.ClientSession.get', autospec=True)
 def test_should_return_0_for_0_when_chained(mock_get):
     mock_get.return_value = get_response_mock()
-    responses = lazyhttp.streamer([])
-    requests = (r.request for r in lazyhttp.streamer(responses))
-    responses2 = lazyhttp.streamer(requests)
+    responses = lazyhttp.get([])
+    requests = (r.request for r in lazyhttp.get(responses))
+    responses2 = lazyhttp.get(requests)
     assert len(list(responses2)) == 0
 
 
 @patch('aiohttp.ClientSession.get', autospec=True)
 def test_should_return_1_for_1_when_chained(mock_get):
     mock_get.return_value = get_response_mock()
-    responses = lazyhttp.streamer(['url'])
-    requests = (r.request for r in lazyhttp.streamer(responses))
-    responses2 = lazyhttp.streamer(requests)
+    responses = lazyhttp.get(['url'])
+    requests = (r.request for r in lazyhttp.get(responses))
+    responses2 = lazyhttp.get(requests)
     assert len(list(responses2)) == 1
