@@ -19,7 +19,12 @@ class Response:
         self.json = json
 
     def __str__(self):
-        return f"Response(request={self.request}, status={self.status}, reason={self.reason}, text={self.text}, json={self.json})"
+        return (
+            f'Response(request={self.request}, '
+            f'status={self.status}, '
+            f'reason={self.reason}, '
+            f'text={self.text}, '
+            f'json={self.json})')
 
     def __eq__(self, other):
         return isinstance(other, Response) and self.__dict__ == other.__dict__
@@ -53,7 +58,8 @@ async def send(client, request, max_retries=3, retry_interval=1):
                 )
         except aiohttp.ClientError as e:
             if attempt < max_retries:
-                print(f"Error: {e} when requesting {request}. Attempt #{attempt}")
+                print(f'Error: {e} when requesting {request}. '
+                      f'Attempt #{attempt}')
                 await asyncio.sleep(retry_interval)
             else:
                 return None
@@ -91,7 +97,8 @@ def worker(requests, sync_queue, concurrency_limit):
 
 def streamer(requests, concurrency_limit=1000):
     """
-    Returns a generator of HTTP responses for the given generator of HTTP requests.
+    Returns a generator of HTTP responses
+        for the given generator of HTTP requests.
 
     Results are returned in the same order as received.
 
