@@ -1,7 +1,12 @@
 # lazyhttp
-lazyhttp is a library that performs lazy-evaluated, asynchronous HTTP requests. It is ideal for making many HTTP requests for data at rest, fast and efficiently in a functional manner.
 
-It is built using Python's new `asyncio` and `aiohttp` libraries, using coroutines under the hood.
+Are you lazy? Do you need to make lots of HTTP requests?
+
+Well, look no further. lazyhttp is for you!
+
+lazyhttp performs lazy-evaluated, asynchronous HTTP requests. It is ideal for making many HTTP requests for data at rest, fast and efficiently in a functional manner.
+
+It uses `asyncio` and `aiohttp` libraries, using coroutines under the hood. It also hides this complexity from you, keeping you in a synchronous mindset.
 
 ## Usage
 
@@ -11,7 +16,7 @@ Suppose you are lazily reading IDs from a flat file, to be used in HTTP requests
 def ids():
     with open('file.txt') as fin:
         for line in fin:
-        yield line.strip()
+            yield line.strip()
 ```
 
 You create a url using each individual ID:
