@@ -10,12 +10,10 @@ readme = "README.md"
 python = "^3.12"
 aiohttp = "^3.9"
 async-timeout = "^4.0"
-#cchardet = "^2.1"
 aiodns = "^3.1"
 pycares = "^4.4"
 
 [tool.poetry.group.dev.dependencies]
-#asynctest = "^0.13.0"
 pytest-asyncio = "^0.23"
 pytest-mock = "^3.12"
 pytest-aiohttp = "^1.0"
