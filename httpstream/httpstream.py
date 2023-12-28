@@ -1,21 +1,13 @@
-from queue import Queue
-# from collections import namedtuple
-
 import asyncio
-import aiohttp
 import itertools
 import threading
+from queue import Queue
 
-import time
+import aiohttp
 
 
 # todo check out aiodns resolver
 # https://stackoverflow.com/a/45169094/1102470
-
-# Response = namedtuple(
-#     'Response',
-#     ['request', 'status', 'reason', 'text', 'json']
-# )
 
 
 class Response:
@@ -115,12 +107,10 @@ def streamer(requests, concurrency_limit=1000):
     """
     sync_queue = Queue(concurrency_limit)
 
-    print('Creating thread')
     t = threading.Thread(
         name='worker',
         target=worker,
         args=(requests, sync_queue, concurrency_limit)
     )
     t.start()
-    print(f'Thread started: {t}')
     return response_generator(sync_queue, t)
