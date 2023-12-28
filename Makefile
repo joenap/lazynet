@@ -13,22 +13,22 @@ lock: ## lock poetry dependencies
 	poetry lock
 
 test: ## run unit tests
-	pipenv run py.test
+	poetry run py.test
 
 test-all: ## run tests on every Python version with tox
 	tox
 
 lint: ## check style
-	pipenv run flake8 httpstream tests
+	poetry run flake8 httpstream tests
 
 coverage: ## check code coverage
-	pipenv run coverage run --source httpstream -m pytest
-	pipenv run coverage report -m
+	poetry run coverage run --source httpstream -m pytest
+	poetry run coverage report -m
 
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
 
 clean-all: clean
-	pipenv --rm
+	poetry --rm
 
 clean-build: ## remove build artifacts
 	@rm -fr build/
@@ -55,6 +55,6 @@ docker: ## build docker image
 ##@ Distribute
 
 dist: ## build the source and wheel packages
-	pipenv run python setup.py sdist
-	pipenv run python setup.py bdist_wheel
+	poetry run python setup.py sdist
+	poetry run python setup.py bdist_wheel
 	ls -l dist

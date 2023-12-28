@@ -1,8 +1,6 @@
-import sys
+import time
 
 import httpstream
-
-import time
 
 NUM_URLS = 3
 
