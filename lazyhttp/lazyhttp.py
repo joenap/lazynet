@@ -108,9 +108,10 @@ def get(requests, concurrency_limit=1000):
         lazy-evaluated HTTP streams.
 
     Example:
-        urls = (f"https://my.domain/{i}" for i in range(10))
+        urls = (f"https://my.domain/object/{i}" for i in range(10))
         responses = lazyhttp.get(urls)
-        data = (my_transform_function(r) for r in responses)
+        for response in responses:
+            print(response)
     """
     sync_queue = Queue(concurrency_limit)
 
