@@ -10,7 +10,7 @@ It uses the `asyncio` and `aiohttp` libraries, using coroutines under the hood. 
 
 ## Usage
 
-```
+```python
 import lazyhttp
 
 def my_url(id):
