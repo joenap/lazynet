@@ -13,11 +13,8 @@ It uses the `asyncio` and `aiohttp` libraries, using coroutines under the hood. 
 ```python
 import lazyhttp
 
-def my_url(id):
-    return f'http://my.domain/object/{id}'
-
 # This is a generator
-urls = (my_url(id) for id in range(10))
+urls = f'https://my.domain/object/{id}' for id in range(10))
 
 # responses is also a generator
 responses = lazyhttp.get(urls)
