@@ -109,7 +109,7 @@ def get(requests, concurrency_limit=1000):
 
     Example:
         urls = (f"https://my.domain/object/{i}" for i in range(10))
-        responses = lazyhttp.get(urls)
+        responses = lazynet.get(urls)
         for response in responses:
             print(response)
     """

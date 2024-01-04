@@ -12,7 +12,7 @@ def urls_gen():
 
 if __name__ == '__main__':
     start = time.time()
-    responses = lazyhttp.get(urls_gen(), concurrency_limit=1000)
+    responses = lazynet.get(urls_gen(), concurrency_limit=1000)
     for r in responses:
         print(r)
     end = time.time()
