@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "lazyhttp"
+name = "lazynet"
 version = "0.2.0"
 description = "Perform lazy-evaluated HTTP requests"
 authors = ["Joe Nap"]
