@@ -52,13 +52,13 @@ clean-test: ## remove test and coverage artifacts
 ##@ Distribute
 
 bump-major:
-	bump2version major
+	poetry run bump2version major
 
 bump-minor:
-	bump2version minor
+	poetry run bump2version minor
 
 bump-patch:
-	bump2version patch
+	poetry run bump2version patch
 
 dist: ## build the source and wheel packages
 	poetry run python setup.py sdist
