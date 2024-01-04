@@ -1,6 +1,6 @@
 import time
 
-import lazyhttp
+import lazynet
 
 NUM_URLS = 3
 
