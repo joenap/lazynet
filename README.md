@@ -14,7 +14,7 @@ It uses the `asyncio` and `aiohttp` libraries, using coroutines under the hood. 
 import lazynet
 
 # This is a generator
-urls = f'https://my.domain/object/{id}' for id in range(10))
+urls = (f'https://my.domain/object/{id}' for id in range(10))
 
 # responses is also a generator
 responses = lazynet.get(urls)
