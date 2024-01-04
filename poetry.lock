@@ -196,20 +196,6 @@ files = [
 ]
 
 [[package]]
-name = "bumpversion"
-version = "0.6.0"
-description = "Version-bump your software with a single command!"
-optional = false
-python-versions = "*"
-files = [
-    {file = "bumpversion-0.6.0-py2.py3-none-any.whl", hash = "sha256:4eb3267a38194d09f048a2179980bb4803701969bff2c85fa8f6d1ce050be15e"},
-    {file = "bumpversion-0.6.0.tar.gz", hash = "sha256:4ba55e4080d373f80177b4dabef146c07ce73c7d1377aabf9d3c3ae1f94584a6"},
-]
-
-[package.dependencies]
-bump2version = "*"
-
-[[package]]
 name = "cachetools"
 version = "5.3.2"
 description = "Extensible memoizing collections and decorators"
@@ -1736,4 +1722,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "1d8f77fe32e4c034c2fd9425db8e182270c26e419d79132857854331a1329dd6"
+content-hash = "b573a0e46a4d342907cbf86a3a48a5bccbe3a091b6f77aa9d2e498bfe9b86a55"
