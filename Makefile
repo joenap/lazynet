@@ -1,4 +1,6 @@
-.PHONY: test test-all clean clean-test clean-pyc clean-build docs help dist
+.PHONY: help install lock test test-all lint coverage clean \
+	clean-all clean-build clean-pyc clean-test \
+	bump-major bump-minor bump-patch dist publish
 .DEFAULT_GOAL := help
 
 help:
@@ -27,7 +29,7 @@ coverage: ## check code coverage
 
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
 
-clean-all: clean
+clean-all: clean ## also remove virtualenv
 	poetry --rm
 
 clean-build: ## remove build artifacts
