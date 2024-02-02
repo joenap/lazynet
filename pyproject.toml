@@ -12,7 +12,6 @@ aiohttp = "^3.9"
 async-timeout = "^4.0"
 aiodns = "^3.1"
 pycares = "^4.4"
-bump2version = "^1.0.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest-asyncio = "^0.23"
@@ -26,6 +25,7 @@ pytest-runner = "^6.0"
 pytest = "^7.4"
 tox = "^4.11"
 twine = "^4.0"
+bump2version = "^1.0.1"
 
 
 [build-system]
