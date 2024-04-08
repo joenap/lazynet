@@ -26,9 +26,3 @@ for response in responses:
 
 ## Performance
 lazynet can currently achieve a rate of about 1300 requests per second.
-
-## History
-
-2019: Alpha status. lazynet was developed as an experiment and proof of concept.
-
-2023: Beta Status. Updated to use current asyncio interface.
