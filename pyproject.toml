@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "lazynet"
-version = "0.3.0"
+version = "0.4.0"
 description = "Perform lazy-evaluated HTTP requests"
 authors = ["Joe Nap"]
 license = "MIT"
