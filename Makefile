@@ -1,6 +1,4 @@
-.PHONY: help install lock test test-all lint coverage clean \
-	clean-all clean-build clean-pyc clean-test \
-	bump-major bump-minor bump-patch dist publish
+.PHONY: help install dev test lint coverage clean clean-all clean-build clean-pyc clean-test dist publish
 .DEFAULT_GOAL := help
 
 help:
@@ -8,63 +6,52 @@ help:
 
 ##@ Dev
 
-install: ## install the package in dev (editable) mode
-	poetry install
+install: ## Sync dependencies and build extension
+	uv sync --group dev
+	uv run maturin develop
 
-lock: ## lock poetry dependencies
-	poetry lock
+dev: ## Build in release mode
+	uv run maturin develop --release
 
-test: ## run unit tests
-	poetry run py.test
+test: ## Run tests
+	uv run pytest
 
-test-all: ## run tests on every Python version with tox
-	tox
+lint: ## Check style
+	uv run flake8 lazynet tests
+	cargo clippy
 
-lint: ## check style
-	poetry run flake8 lazynet tests
+coverage: ## Check code coverage
+	uv run coverage run --source lazynet -m pytest
+	uv run coverage report -m
 
-coverage: ## check code coverage
-	poetry run coverage run --source lazynet -m pytest
-	poetry run coverage report -m
+clean: clean-build clean-pyc clean-test ## Remove all build, test, coverage and Python artifacts
 
-clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
+clean-all: clean ## Also remove Rust target directory and venv
+	@rm -rf target/
+	@rm -rf .venv/
 
-clean-all: clean ## also remove virtualenv
-	poetry --rm
+clean-build: ## Remove build artifacts
+	@rm -rf target/
+	@rm -rf dist/
+	@rm -rf *.egg-info
+	@find . -name '*.so' -exec rm -f {} +
 
-clean-build: ## remove build artifacts
-	@rm -fr build/
-	@rm -fr dist/
-	@rm -fr .eggs/
-	@find . -name '*.egg-info' -exec rm -fr {} +
-	@find . -name '*.egg' -exec rm -f {} +
-
-clean-pyc: ## remove Python file artifacts
+clean-pyc: ## Remove Python file artifacts
 	@find . -name '*.pyc' -exec rm -f {} +
 	@find . -name '*.pyo' -exec rm -f {} +
 	@find . -name '*~' -exec rm -f {} +
 	@find . -name '__pycache__' -exec rm -fr {} +
 
-clean-test: ## remove test and coverage artifacts
-	@rm -fr .tox/
+clean-test: ## Remove test and coverage artifacts
+	@rm -rf .tox/
 	@rm -f .coverage
-	@rm -fr htmlcov/
-	@rm -fr .pytest_cache
+	@rm -rf htmlcov/
+	@rm -rf .pytest_cache
 
 ##@ Distribute
 
-bump-major: ## bump major version
-	poetry run bump2version major
+dist: ## Build wheels
+	uv run maturin build --release
 
-bump-minor: ## bump minor version
-	poetry run bump2version minor
-
-bump-patch: ## bump patch version
-	poetry run bump2version patch
-
-dist: ## build the source and wheel packages
-	poetry build
-	ls -l dist
-
-publish: ## publish the package to pypi
-	poetry publish
+publish: ## Publish to PyPI
+	uv run maturin publish

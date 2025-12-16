@@ -3,6 +3,12 @@
 # C extensions
 *.so
 
+# Rust
+target/
+
+# Virtual environment
+.venv/
+
 # Packages
 *.egg
 *.egg-info

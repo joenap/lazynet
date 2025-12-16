@@ -1,5 +1,7 @@
 __author__ = 'Joe Nap'
 __email__ = 'joenap@gmail.com'
-__version__ = '0.4.0'
+__version__ = '0.5.0'
 
-from .lazynet import get, Response
+from ._lazynet import get, Response
+
+__all__ = ['get', 'Response']
