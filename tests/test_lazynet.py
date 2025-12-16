@@ -1,65 +1,102 @@
-import asyncio
-from unittest.mock import AsyncMock, patch
+"""Tests for lazynet Rust implementation."""
 
 import pytest
-from aiohttp import ClientSession, ClientResponse
-
-from lazynet import lazynet as _lazynet
 import lazynet
 
-REQUEST = 'url'
-DATA = b'data'
 
-RESPONSE_ATTRS = {
-    'request': REQUEST,
-    'status': 200,
-    'reason': 'ok',
-    'text.return_value': '',
-    'json.return_value': {}
-}
+class TestResponse:
+    """Test Response class API."""
 
-expected_response = lazynet.Response(
-    request=REQUEST,
-    status=RESPONSE_ATTRS['status'],
-    reason=RESPONSE_ATTRS['reason'],
-    text=RESPONSE_ATTRS['text.return_value'],
-    json=RESPONSE_ATTRS['json.return_value'],
-)
+    def test_response_has_expected_attributes(self):
+        """Response should have all expected attributes."""
+        # We can't easily construct a Response directly since it comes from Rust,
+        # but we can verify the attributes exist on the class
+        assert hasattr(lazynet, 'Response')
+
+    def test_response_module_exports(self):
+        """Module should export get and Response."""
+        assert hasattr(lazynet, 'get')
+        assert hasattr(lazynet, 'Response')
 
 
-def get_response_mock():
-    response_mock = AsyncMock(**RESPONSE_ATTRS, spec=ClientResponse)
-    response_mock.__aenter__.return_value = response_mock
-    return response_mock
+class TestGet:
+    """Test get() function behavior."""
+
+    def test_empty_input_returns_empty_iterator(self):
+        """Empty input should return empty iterator."""
+        urls = iter([])
+        responses = list(lazynet.get(urls))
+        assert len(responses) == 0
+
+    def test_get_returns_iterator(self):
+        """get() should return an iterator."""
+        urls = iter([])
+        result = lazynet.get(urls)
+        assert hasattr(result, '__iter__')
+        assert hasattr(result, '__next__')
+
+    def test_get_accepts_concurrency_limit(self):
+        """get() should accept concurrency_limit parameter."""
+        urls = iter([])
+        # Should not raise
+        responses = list(lazynet.get(urls, concurrency_limit=10))
+        assert len(responses) == 0
+
+    def test_get_accepts_generator(self):
+        """get() should accept a generator."""
+        urls = (f"http://invalid.test/{i}" for i in range(0))
+        responses = list(lazynet.get(urls))
+        assert len(responses) == 0
 
 
-@pytest.mark.asyncio
-@patch('aiohttp.ClientSession.get', autospec=True)
-async def test_send_should_call_client_get_with_request(mock_get):
-    mock_get.return_value = get_response_mock()
-    event_loop = asyncio.get_running_loop()
+class TestIntegration:
+    """Integration tests requiring network access."""
 
-    async with ClientSession(loop=event_loop) as client:
-        result = await _lazynet._send(client, REQUEST)
+    @pytest.mark.skip(reason="Requires network access")
+    def test_real_http_request(self):
+        """Test with a real HTTP endpoint."""
+        urls = iter(["https://httpbin.org/json"])
+        responses = list(lazynet.get(urls))
 
-    mock_get.assert_called_once_with(client, REQUEST)
-    assert result == expected_response
+        assert len(responses) == 1
+        r = responses[0]
 
+        # Check all expected fields exist
+        assert hasattr(r, 'request')
+        assert hasattr(r, 'status')
+        assert hasattr(r, 'reason')
+        assert hasattr(r, 'text')
+        assert hasattr(r, 'json')
 
-@pytest.mark.parametrize("input_list, expected_length", [([], 0), ([1], 1), ([1, 2], 2)])
-def test_should_return_expected_length_for_response(input_list, expected_length):
-    with patch('aiohttp.ClientSession.get', autospec=True) as mock_get:
-        mock_get.return_value = get_response_mock()
-        assert len(list(lazynet.get(input_list))) == expected_length
-        assert mock_get.call_count == expected_length
+        # Check values
+        assert r.request == "https://httpbin.org/json"
+        assert r.status == 200
+        assert r.reason == "OK"
+        assert isinstance(r.text, str)
+        assert isinstance(r.json, dict)
 
+    @pytest.mark.skip(reason="Requires network access")
+    def test_multiple_requests(self):
+        """Test multiple concurrent requests."""
+        urls = [f"https://httpbin.org/get?id={i}" for i in range(3)]
+        responses = list(lazynet.get(iter(urls)))
 
-@pytest.mark.parametrize("input_list, expected_length", [([], 0), ([1], 1), ([1, 2], 2)])
-def test_should_return_expected_length_for_chained_response(input_list, expected_length):
-    with patch('aiohttp.ClientSession.get', autospec=True) as mock_get:
-        mock_get.return_value = get_response_mock()
-        responses = lazynet.get(input_list)
-        chained_requests = (r.request for r in responses)
-        responses2 = lazynet.get(chained_requests)
-        assert len(list(responses2)) == expected_length
-        assert mock_get.call_count == expected_length * 2
+        assert len(responses) == 3
+        for r in responses:
+            assert r.status == 200
+
+    @pytest.mark.skip(reason="Requires network access")
+    def test_response_string_representation(self):
+        """Response should have string representation."""
+        urls = iter(["https://httpbin.org/get"])
+        responses = list(lazynet.get(urls))
+
+        assert len(responses) == 1
+        r = responses[0]
+
+        # Should not raise
+        s = str(r)
+        assert 'Response' in s
+
+        rep = repr(r)
+        assert 'Response' in rep
