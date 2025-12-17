@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "lazynet"
-version = "0.5.0"
+version = "0.6.0"
 description = "Lazy-evaluated, asynchronous HTTP requests powered by Rust"
 authors = [{ name = "Joe Nap", email = "joenap@gmail.com" }]
 license = { text = "MIT" }
