@@ -26,9 +26,8 @@ dev = [
     "pytest-benchmark>=4.0",
     "pytest-httpserver>=1.0",
     "coverage>=7.3",
-    "flake8>=6.1",
-    "maturin>=1.4,<2.0",
     "ruff>=0.14.9",
+    "maturin>=1.4,<2.0",
 ]
 
 [tool.maturin]
