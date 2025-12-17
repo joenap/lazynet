@@ -62,6 +62,73 @@ pub struct Lazynet {
     cross_response_receiver: crossbeam_channel::Receiver<ResponseMsg>,
 }
 
+/// Shared HTTP client with its own runtime for connection pooling.
+pub struct SharedClient {
+    rt: tokio::runtime::Runtime,
+    client: reqwest::Client,
+}
+
+impl SharedClient {
+    /// Create a new shared HTTP client with its own runtime.
+    pub fn new() -> Self {
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+        let client = reqwest::Client::new();
+        SharedClient { rt, client }
+    }
+
+    /// Make requests using this client's runtime. Returns a receiver for responses.
+    pub fn get(
+        &self,
+        urls: Vec<String>,
+        concurrency_limit: usize,
+    ) -> crossbeam_channel::Receiver<ResponseMsg> {
+        let buf_size = 100;
+
+        let (async_request_sender, async_request_receiver) =
+            tokio::sync::mpsc::channel::<RequestMsg>(buf_size);
+        let (async_response_sender, async_response_receiver) =
+            tokio::sync::mpsc::channel::<ResponseMsg>(buf_size);
+        let (cross_response_sender, cross_response_receiver) =
+            crossbeam_channel::bounded::<ResponseMsg>(buf_size);
+
+        let client = self.client.clone();
+
+        // Spawn tasks on the shared runtime
+        self.rt.spawn(async move {
+            for url in urls {
+                if async_request_sender
+                    .send(RequestMsg::Element(url))
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
+            let _ = async_request_sender.send(RequestMsg::End).await;
+        });
+
+        self.rt.spawn(async_http_client_task(
+            async_request_receiver,
+            async_response_sender,
+            concurrency_limit,
+            client,
+        ));
+
+        self.rt.spawn(async_response_task(
+            async_response_receiver,
+            cross_response_sender,
+        ));
+
+        cross_response_receiver
+    }
+}
+
+impl Default for SharedClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Lazynet {
     /// Create a new Lazynet instance with default settings (1000 concurrency).
     pub fn new() -> Self {
@@ -70,7 +137,23 @@ impl Lazynet {
 
     /// Create a new Lazynet instance with custom buffer size and concurrency limit.
     pub fn with_config(buf_size: usize, concurrency_limit: usize) -> Self {
+        Self::with_client(None, buf_size, concurrency_limit)
+    }
+
+    /// Create a new Lazynet instance with an optional shared client.
+    /// If no client is provided, creates a new one.
+    pub fn with_client(
+        shared_client: Option<&SharedClient>,
+        buf_size: usize,
+        concurrency_limit: usize,
+    ) -> Self {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+
+        // Use provided client or create a new one
+        let http_client = match shared_client {
+            Some(sc) => sc.client.clone(),
+            None => reqwest::Client::new(),
+        };
 
         // Create channels for the pipeline
         let (cross_request_sender, cross_request_receiver) =
@@ -92,6 +175,7 @@ impl Lazynet {
             async_request_receiver,
             async_response_sender,
             concurrency_limit,
+            http_client,
         ));
 
         rt.spawn(async_response_task(
@@ -163,9 +247,9 @@ async fn async_http_client_task(
     mut async_request_receiver: tokio::sync::mpsc::Receiver<RequestMsg>,
     async_response_sender: tokio::sync::mpsc::Sender<ResponseMsg>,
     concurrency_limit: usize,
+    http_client: reqwest::Client,
 ) {
     let tracker = TaskTracker::new();
-    let http_client = reqwest::Client::new();
     let semaphore = Arc::new(tokio::sync::Semaphore::new(concurrency_limit));
 
     loop {
