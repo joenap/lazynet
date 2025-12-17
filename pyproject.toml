@@ -24,6 +24,7 @@ dev = [
     "pytest>=7.4",
     "pytest-asyncio>=0.23",
     "pytest-benchmark>=4.0",
+    "pytest-httpserver>=1.0",
     "coverage>=7.3",
     "flake8>=6.1",
     "maturin>=1.4,<2.0",

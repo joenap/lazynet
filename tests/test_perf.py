@@ -20,7 +20,9 @@ def client():
     return lazynet.Client()
 
 
-def make_requests(client: lazynet.Client, num_urls: int, concurrency: int = 1000) -> int:
+def make_requests(
+    client: lazynet.Client, num_urls: int, concurrency: int = 1000
+) -> int:
     """Make HTTP requests and return count of responses."""
     urls = (URL for _ in range(num_urls))
     responses = list(client.get(urls, concurrency_limit=concurrency))
