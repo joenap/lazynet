@@ -268,19 +268,11 @@ async fn async_request_task(
     let (bridge_tx, mut bridge_rx) = tokio::sync::mpsc::channel::<RequestMsg>(100);
 
     tokio::task::spawn_blocking(move || {
-        loop {
-            match cross_request_receiver.recv() {
-                Ok(msg) => {
-                    let is_end = matches!(msg, RequestMsg::End);
-                    // Use blocking_send since we're in a blocking context
-                    if bridge_tx.blocking_send(msg).is_err() {
-                        break;
-                    }
-                    if is_end {
-                        break;
-                    }
-                }
-                Err(_) => break, // Channel closed
+        while let Ok(msg) = cross_request_receiver.recv() {
+            let is_end = matches!(msg, RequestMsg::End);
+            // Use blocking_send since we're in a blocking context
+            if bridge_tx.blocking_send(msg).is_err() || is_end {
+                break;
             }
         }
     });
@@ -346,18 +338,10 @@ async fn async_response_task(
     mut async_response_receiver: tokio::sync::mpsc::Receiver<ResponseMsg>,
     cross_response_sender: crossbeam_channel::Sender<ResponseMsg>,
 ) {
-    loop {
-        match async_response_receiver.recv().await {
-            Some(msg) => {
-                let is_end = matches!(msg, ResponseMsg::End);
-                if cross_response_sender.send(msg).is_err() {
-                    break;
-                }
-                if is_end {
-                    break;
-                }
-            }
-            None => break, // Channel closed
+    while let Some(msg) = async_response_receiver.recv().await {
+        let is_end = matches!(msg, ResponseMsg::End);
+        if cross_response_sender.send(msg).is_err() || is_end {
+            break;
         }
     }
 }

@@ -50,7 +50,7 @@ impl Response {
     #[getter]
     fn json(&self, py: Python<'_>) -> PyResult<PyObject> {
         match &self.json_value {
-            Some(val) => Ok(val.clone_ref(py).into()),
+            Some(val) => Ok(val.clone_ref(py)),
             None => Ok(py.None()),
         }
     }
@@ -89,7 +89,7 @@ impl Response {
         // Try to parse the response text as JSON (only if no error)
         let json_value = if r.error.is_none() && !r.text.is_empty() {
             match serde_json::from_str::<serde_json::Value>(&r.text) {
-                Ok(value) => Some(json_to_py(py, &value)?.into()),
+                Ok(value) => Some(json_to_py(py, &value)?),
                 Err(_) => None, // Not valid JSON, that's fine
             }
         } else {
