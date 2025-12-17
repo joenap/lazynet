@@ -46,15 +46,27 @@ fn main() {
     println!();
 
     // Throughput benchmarks
-    println!("=== Throughput Benchmarks ===");
-    for num_requests in [100, 500, 1000, 5000] {
+    let num_cores = std::thread::available_parallelism()
+        .map(|p| p.get())
+        .unwrap_or(1);
+
+    println!("=== Throughput Benchmarks ({} cores) ===", num_cores);
+    let mut max_rate = 0.0_f64;
+    for num_requests in [100, 500, 1000, 5000, 30000, 100000] {
         let (success, errors, elapsed) = run_benchmark(num_requests, 1000);
         let rate = (success + errors) as f64 / elapsed.as_secs_f64();
+        max_rate = max_rate.max(rate);
         println!(
-            "  {:5} requests: {:5} ok, {:3} err, {:7.2?}, {:8.0} req/s",
+            "  {:6} requests: {:6} ok, {:3} err, {:7.2?}, {:8.0} req/s",
             num_requests, success, errors, elapsed, rate
         );
     }
+    println!();
+
+    // Single-core estimate
+    let estimated_single_core = max_rate / num_cores as f64;
+    println!("=== Single-Core Estimate ===");
+    println!("  {:8.0} req/s (max throughput / {} cores)", estimated_single_core, num_cores);
     println!();
 
     // Concurrency benchmarks
