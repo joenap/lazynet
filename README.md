@@ -1,107 +1,63 @@
 # lazynet
 
-[![PyPI version](https://badge.fury.io/py/lazynet.svg)](https://badge.fury.io/py/lazynet)
-[![CI](https://github.com/joenap/lazynet/workflows/CI/badge.svg)](https://github.com/joenap/lazynet/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+Are you lazy? Do you need to make lots of HTTP requests?
 
-Lazy-evaluated, asynchronous HTTP requests powered by Rust.
+Well, look no further. lazynet is for you!
 
-Pass in a generator of URLs, get back a generator of responses. Requests execute concurrently when responses are consumed.
+lazynet performs lazy-evaluated, asynchronous HTTP requests. It is ideal for making many HTTP requests for data at rest, fast and efficiently in a functional manner.
 
-## Features
+It uses Rust's async runtime (tokio + reqwest) under the hood. It also hides this complexity from you, keeping you in a synchronous mindset.
 
-- **Lazy evaluation** - Requests only execute when you iterate over responses
-- **High concurrency** - Configurable limit (default: 1000 concurrent requests)
-- **Connection pooling** - `Client` class for reusing connections across batches
-- **Fast** - Rust async runtime (tokio + reqwest) for maximum throughput
-- **Simple API** - Synchronous Python interface, async complexity hidden
+## Usage
 
-## Installation
+Suppose you are lazily reading IDs from a flat file, to be used in HTTP requests:
 
-```bash
-pip install lazynet
+```python
+def lazy_ids():
+    with open('file.txt') as fin:
+        for line in fin:
+            yield line.strip()
 ```
 
-## Quick Start
+You create a url using each individual ID:
+
+```python
+def my_url(id):
+    return f'http://localhost/object/{id}'
+```
+
+Now you can make the HTTP request lazily using Python generators:
 
 ```python
 import lazynet
 
-# Generator of URLs
-urls = (f"https://api.example.com/item/{i}" for i in range(100))
+urls = (my_url(id) for id in lazy_ids())
+responses = lazynet.get(urls)  # responses is a generator
 
-# Lazy iteration - requests execute as you consume
-for response in lazynet.get(urls):
-    print(response.status, response.text[:50])
-    if response.json:  # Auto-parsed JSON
-        print(response.json["key"])
-```
-
-## API Reference
-
-### `lazynet.get(urls, concurrency_limit=1000, timeout_secs=30)`
-
-Make HTTP GET requests lazily.
-
-**Parameters:**
-- `urls` - Iterable of URL strings
-- `concurrency_limit` - Maximum concurrent requests (default: 1000)
-- `timeout_secs` - Request timeout in seconds (default: 30)
-
-**Returns:** Iterator of `Response` objects
-
-```python
-# Basic usage
-for response in lazynet.get(urls):
-    process(response)
-
-# With options
-for response in lazynet.get(urls, concurrency_limit=100, timeout_secs=60):
-    process(response)
-```
-
-### `lazynet.Client(timeout_secs=30)`
-
-Reusable HTTP client for connection pooling across multiple request batches.
-
-```python
-client = lazynet.Client(timeout_secs=30)
-
-for batch in url_batches:
-    for response in client.get(batch, concurrency_limit=500):
-        process(response)
-```
-
-### `Response`
-
-Response object returned for each request.
-
-**Attributes:**
-- `request` - Original URL string
-- `status` - HTTP status code (int)
-- `reason` - Status reason phrase (e.g., "OK", "Not Found")
-- `text` - Response body as string
-- `json` - Auto-parsed JSON (dict/list) or `None` if not valid JSON
-- `error` - Error message if request failed, otherwise `None`
-
-```python
-for response in lazynet.get(urls):
-    if response.error:
-        print(f"Failed: {response.request} - {response.error}")
-    elif response.status == 200:
-        data = response.json or response.text
-        print(f"Success: {data}")
+for response in responses:  # nothing is evaluated until this loop
+    print(response.status)
 ```
 
 ## Performance
 
-lazynet achieves high throughput by using Rust's async runtime (tokio) with the reqwest HTTP client. On localhost benchmarks:
+2015-2023: An initial implementation <=0.4.0 was written in pure python and achieved 1300 requests per second on a single core.
 
-- **360,000+ requests/second** peak throughput
-- **~11,000 requests/second** single-core estimate
+2024: Rewrote the core logic in Rust, getting ~7000 requests per second on a single core.
 
-Actual performance depends on network latency, server response time, and system resources.
+2025: Vibecoded to perfection, getting ~11k requests per second on a single core. Also added multi-core support,
+tested on a 16 core AM5 cpu (32 HT cores), getting a whopping ~360k requests per second.
 
-## License
+All performance tests are performed against a local nginx server. On Macos you will hit file limits
+long before the performance bottleneck.
 
-MIT
+## History
+
+2015: The original concept was explored [here](https://stackoverflow.com/questions/31869593/yielding-a-value-from-a-coroutine-in-python-a-k-a-convert-callback-to-generato)
+
+2019: lazynet was revisited and developed further over 3 days in a hackathon as a proof of concept.
+
+2023: Updated to use current asyncio interface. Removed Tornado as a dependency.
+
+2024: Rewritten in Rust using PyO3 for maximum performance.
+
+2025: Brought up to BETA standards and will be put into a production service.
