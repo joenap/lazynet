@@ -23,6 +23,9 @@ pub struct Response {
     pub reason: String,
     #[pyo3(get)]
     pub text: String,
+    /// Error message if the request failed, None if successful.
+    #[pyo3(get)]
+    pub error: Option<String>,
     // Store parsed JSON as a Python object
     json_value: Option<Py<PyAny>>,
 }
@@ -34,6 +37,7 @@ impl Clone for Response {
             status: self.status,
             reason: self.reason.clone(),
             text: self.text.clone(),
+            error: self.error.clone(),
             json_value: self.json_value.as_ref().map(|v| v.clone_ref(py)),
         })
     }
@@ -51,12 +55,17 @@ impl Response {
     }
 
     fn __repr__(&self) -> String {
+        // Use char-based truncation to avoid panic on multi-byte UTF-8
+        let text_preview: String = self.text.chars().take(50).collect();
+        let ellipsis = if self.text.chars().count() > 50 { "..." } else { "" };
         format!(
-            "Response(request='{}', status={}, reason='{}', text='{}...', json=<...>)",
+            "Response(request='{}', status={}, reason='{}', text='{}{}', error={:?})",
             self.request,
             self.status,
             self.reason,
-            &self.text[..self.text.len().min(50)]
+            text_preview,
+            ellipsis,
+            self.error
         )
     }
 
@@ -69,13 +78,14 @@ impl Response {
             && self.status == other.status
             && self.reason == other.reason
             && self.text == other.text
+            && self.error == other.error
     }
 }
 
 impl Response {
     /// Create a Response from the Rust pipeline response, parsing JSON.
     fn from_rust_response(py: Python<'_>, r: RustResponse) -> PyResult<Self> {
-        // Try to parse the response text as JSON
+        // Try to parse the response text as JSON (only if no error)
         let json_value = if r.error.is_none() && !r.text.is_empty() {
             match serde_json::from_str::<serde_json::Value>(&r.text) {
                 Ok(value) => Some(json_to_py(py, &value)?.into()),
@@ -90,6 +100,7 @@ impl Response {
             status: r.status,
             reason: r.reason,
             text: r.text,
+            error: r.error,
             json_value,
         })
     }
@@ -140,20 +151,12 @@ impl LazynetIterator {
     }
 
     fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<Response>> {
-        loop {
-            // Release the GIL while blocking on the channel
-            let rust_response = py.allow_threads(|| self.lazynet.recv());
+        // Release the GIL while blocking on the channel
+        let rust_response = py.allow_threads(|| self.lazynet.recv());
 
-            match rust_response {
-                Some(r) => {
-                    // Skip error responses and continue to next
-                    if r.error.is_some() {
-                        continue;
-                    }
-                    return Ok(Some(Response::from_rust_response(py, r)?));
-                }
-                None => return Ok(None),
-            }
+        match rust_response {
+            Some(r) => Ok(Some(Response::from_rust_response(py, r)?)),
+            None => Ok(None),
         }
     }
 }
@@ -218,19 +221,14 @@ impl ClientIterator {
     }
 
     fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<Response>> {
-        loop {
-            let msg = py.allow_threads(|| self.receiver.recv());
+        let msg = py.allow_threads(|| self.receiver.recv());
 
-            match msg {
-                Ok(pipeline::ResponseMsg::Element(r)) => {
-                    if r.error.is_some() {
-                        continue;
-                    }
-                    return Ok(Some(Response::from_rust_response(py, r)?));
-                }
-                Ok(pipeline::ResponseMsg::End) => return Ok(None),
-                Err(_) => return Ok(None),
+        match msg {
+            Ok(pipeline::ResponseMsg::Element(r)) => {
+                Ok(Some(Response::from_rust_response(py, r)?))
             }
+            Ok(pipeline::ResponseMsg::End) => Ok(None),
+            Err(_) => Ok(None),
         }
     }
 }
