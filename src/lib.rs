@@ -10,11 +10,10 @@ mod pipeline;
 
 use pipeline::{Lazynet, Response as RustResponse, SharedClient};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyIterator, PyList};
+use pyo3::types::{PyDict, PyIterator, PyList, PyModule};
 
 /// HTTP response returned from lazynet.
 #[pyclass]
-#[derive(Clone)]
 pub struct Response {
     #[pyo3(get)]
     pub request: String,
@@ -26,6 +25,18 @@ pub struct Response {
     pub text: String,
     // Store parsed JSON as a Python object
     json_value: Option<Py<PyAny>>,
+}
+
+impl Clone for Response {
+    fn clone(&self) -> Self {
+        Python::with_gil(|py| Response {
+            request: self.request.clone(),
+            status: self.status,
+            reason: self.reason.clone(),
+            text: self.text.clone(),
+            json_value: self.json_value.as_ref().map(|v| v.clone_ref(py)),
+        })
+    }
 }
 
 #[pymethods]
@@ -88,30 +99,30 @@ impl Response {
 fn json_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<PyObject> {
     match value {
         serde_json::Value::Null => Ok(py.None()),
-        serde_json::Value::Bool(b) => Ok(b.into_py(py)),
+        serde_json::Value::Bool(b) => Ok(b.into_pyobject(py)?.to_owned().into_any().unbind()),
         serde_json::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
-                Ok(i.into_py(py))
+                Ok(i.into_pyobject(py)?.into_any().unbind())
             } else if let Some(f) = n.as_f64() {
-                Ok(f.into_py(py))
+                Ok(f.into_pyobject(py)?.into_any().unbind())
             } else {
                 Ok(py.None())
             }
         }
-        serde_json::Value::String(s) => Ok(s.into_py(py)),
+        serde_json::Value::String(s) => Ok(s.into_pyobject(py)?.into_any().unbind()),
         serde_json::Value::Array(arr) => {
             let list = PyList::empty(py);
             for item in arr {
                 list.append(json_to_py(py, item)?)?;
             }
-            Ok(list.into())
+            Ok(list.unbind().into_any())
         }
         serde_json::Value::Object(map) => {
             let dict = PyDict::new(py);
             for (k, v) in map {
                 dict.set_item(k, json_to_py(py, v)?)?;
             }
-            Ok(dict.into())
+            Ok(dict.unbind().into_any())
         }
     }
 }
@@ -180,9 +191,10 @@ impl Client {
     /// Returns:
     ///     An iterator of Response objects
     #[pyo3(signature = (urls, concurrency_limit=1000))]
-    fn get(&self, urls: &PyIterator, concurrency_limit: usize) -> PyResult<ClientIterator> {
+    fn get(&self, urls: &Bound<'_, PyIterator>, concurrency_limit: usize) -> PyResult<ClientIterator> {
         // Collect URLs into a Vec
         let url_vec: Vec<String> = urls
+            .try_iter()?
             .map(|r| r.and_then(|obj| obj.extract::<String>()))
             .collect::<PyResult<Vec<_>>>()?;
 
@@ -238,11 +250,11 @@ impl ClientIterator {
 ///         print(response.status, response.text)
 #[pyfunction]
 #[pyo3(signature = (urls, concurrency_limit=1000))]
-fn get(urls: &PyIterator, concurrency_limit: usize) -> PyResult<LazynetIterator> {
+fn get(urls: &Bound<'_, PyIterator>, concurrency_limit: usize) -> PyResult<LazynetIterator> {
     let lazynet = Lazynet::with_config(100, concurrency_limit);
 
     // Consume the Python iterator and send URLs to the pipeline
-    for url_result in urls {
+    for url_result in urls.try_iter()? {
         let url: String = url_result?.extract()?;
         lazynet.send(url);
     }
@@ -253,7 +265,7 @@ fn get(urls: &PyIterator, concurrency_limit: usize) -> PyResult<LazynetIterator>
 
 /// Lazynet Python module - lazy-evaluated HTTP requests.
 #[pymodule]
-fn _lazynet(_py: Python, m: &PyModule) -> PyResult<()> {
+fn _lazynet(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Response>()?;
     m.add_class::<LazynetIterator>()?;
     m.add_class::<Client>()?;
