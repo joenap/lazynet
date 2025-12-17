@@ -241,29 +241,41 @@ impl Default for Lazynet {
 // =============================================================================
 
 /// Bridge from sync crossbeam channel to async tokio channel.
-/// Uses spawn_blocking to avoid blocking the async runtime's worker threads.
+/// Uses a single blocking task to avoid blocking the async runtime's worker threads.
 async fn async_request_task(
     cross_request_receiver: crossbeam_channel::Receiver<RequestMsg>,
     async_request_sender: tokio::sync::mpsc::Sender<RequestMsg>,
 ) {
-    loop {
-        // Move blocking recv to dedicated thread pool to avoid blocking async workers
-        let receiver = cross_request_receiver.clone();
-        let recv_result = tokio::task::spawn_blocking(move || receiver.recv())
-            .await
-            .expect("spawn_blocking task panicked");
+    // Spawn a single blocking task that reads all messages and forwards them
+    // This avoids the overhead of spawn_blocking per message
+    let (bridge_tx, mut bridge_rx) = tokio::sync::mpsc::channel::<RequestMsg>(100);
 
-        match recv_result {
-            Ok(msg) => {
-                let is_end = matches!(msg, RequestMsg::End);
-                if async_request_sender.send(msg).await.is_err() {
-                    break;
+    tokio::task::spawn_blocking(move || {
+        loop {
+            match cross_request_receiver.recv() {
+                Ok(msg) => {
+                    let is_end = matches!(msg, RequestMsg::End);
+                    // Use blocking_send since we're in a blocking context
+                    if bridge_tx.blocking_send(msg).is_err() {
+                        break;
+                    }
+                    if is_end {
+                        break;
+                    }
                 }
-                if is_end {
-                    break;
-                }
+                Err(_) => break, // Channel closed
             }
-            Err(_) => break, // Channel closed
+        }
+    });
+
+    // Forward messages from the bridge to the async sender
+    while let Some(msg) = bridge_rx.recv().await {
+        let is_end = matches!(msg, RequestMsg::End);
+        if async_request_sender.send(msg).await.is_err() {
+            break;
+        }
+        if is_end {
+            break;
         }
     }
 }
