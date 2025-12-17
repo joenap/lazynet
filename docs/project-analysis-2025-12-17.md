@@ -3,15 +3,24 @@
 **Reviewer**: Principal Engineer / Rust Expert
 **Project**: Lazynet - Lazy-evaluated async HTTP requests (Rust/PyO3)
 **Date**: 2025-12-17
+**Updated**: 2025-12-17 (post-fixes)
 **Files Reviewed**: `src/lib.rs`, `src/pipeline.rs`, `benches/bench_runner.rs`, `Cargo.toml`
 
 ---
 
 ## Executive Summary
 
-Lazynet is a well-architected PyO3 library that bridges Python's synchronous iteration with Rust's async HTTP capabilities. The core design is sound, the async pipeline is correctly structured, and the code demonstrates solid understanding of both Rust and PyO3. However, there are several issues ranging from **critical** (silent error loss) to **low** (potential panics in edge cases) that should be addressed.
+Lazynet is a well-architected PyO3 library that bridges Python's synchronous iteration with Rust's async HTTP capabilities. The core design is sound, the async pipeline is correctly structured, and the code demonstrates solid understanding of both Rust and PyO3.
 
-**Overall Grade: B+** - Good foundation with notable areas for improvement.
+**Overall Grade: A-** - Production-ready after fixes applied.
+
+### Fixes Applied
+| Issue | Severity | Status | Commit |
+|-------|----------|--------|--------|
+| Silent Error Loss | CRITICAL | ✅ FIXED | `c2cc760` |
+| UTF-8 Panic in `__repr__` | MEDIUM | ✅ FIXED | `c2cc760` |
+| No Request Timeouts | MEDIUM | ✅ FIXED | `d53cb41` |
+| Blocking recv in async | MODERATE | ✅ FIXED | `7d67034` |
 
 ---
 
@@ -31,80 +40,60 @@ Lazynet is a well-architected PyO3 library that bridges Python's synchronous ite
 
 ---
 
-## Critical Issues
+## Critical Issues (All Fixed)
 
-### 1. Silent Error Loss (Severity: CRITICAL)
+### 1. ✅ Silent Error Loss (Severity: CRITICAL) - FIXED
 
-**Location**: `src/lib.rs:149-151`, `src/lib.rs:226-227`
+**Commit**: `c2cc760`
 
-```rust
-if r.error.is_some() {
-    continue;  // Silently drops failed requests!
-}
-```
+**Problem**: HTTP errors were silently swallowed. Users had no way to know which requests failed or why.
 
-**Problem**: HTTP errors (network failures, DNS errors, timeouts, connection refused) are silently swallowed. Users have no way to know:
-- How many requests failed
-- Which URLs failed
-- Why they failed
+**Fix Applied**:
+- Added `error: Option<String>` field to Python `Response` class
+- Error responses now returned to users with `status=0` and error message
+- Removed the `continue` statements that skipped error responses
 
-**Impact**: In production, if 50% of requests fail due to a backend issue, users will receive 50% fewer responses with zero indication of the problem. This is a data integrity issue.
-
-**Recommendation**: Either:
-- Return error responses with a distinguishable status (e.g., `status=0`)
-- Add an `error` property to the Python `Response` class
-- Provide an optional error callback or separate error iterator
-
----
-
-### 2. `__repr__` UTF-8 Panic Risk (Severity: MEDIUM)
-
-**Location**: `src/lib.rs:59`
-
-```rust
-&self.text[..self.text.len().min(50)]
-```
-
-**Problem**: Byte-level string slicing can panic if the 50th byte falls in the middle of a multi-byte UTF-8 character (e.g., emoji, CJK characters).
-
-**Example**: A response body starting with `"你好..."` could panic when accessed via `repr(response)`.
-
-**Recommendation**:
-```rust
-// Safe version using char boundaries
-fn truncate_str(s: &str, max_chars: usize) -> &str {
-    match s.char_indices().nth(max_chars) {
-        Some((idx, _)) => &s[..idx],
-        None => s,
-    }
-}
-```
-
----
-
-### 3. No Request Timeouts (Severity: MEDIUM)
-
-**Location**: `src/pipeline.rs:293-309`
-
-The `make_request` function uses reqwest's default timeout (none, or 30s depending on version). There's no way for users to configure:
-- Connection timeout
-- Read timeout
-- Total request timeout
-
-**Impact**: A single hanging request can block a semaphore permit indefinitely, reducing effective concurrency.
-
-**Recommendation**: Add timeout configuration to the API:
 ```python
-lazynet.get(urls, concurrency_limit=1000, timeout_secs=30)
+# Now users can check for errors:
+for r in lazynet.get(urls):
+    if r.error:
+        print(f"Failed: {r.request} - {r.error}")
+```
+
+---
+
+### 2. ✅ `__repr__` UTF-8 Panic Risk (Severity: MEDIUM) - FIXED
+
+**Commit**: `c2cc760`
+
+**Problem**: Byte-level string slicing could panic on multi-byte UTF-8 characters.
+
+**Fix Applied**: Changed to char-based truncation:
+```rust
+let text_preview: String = self.text.chars().take(50).collect();
+```
+
+---
+
+### 3. ✅ No Request Timeouts (Severity: MEDIUM) - FIXED
+
+**Commit**: `d53cb41`
+
+**Problem**: No way to configure request timeouts. Hanging requests blocked semaphore permits indefinitely.
+
+**Fix Applied**: Added configurable `timeout_secs` parameter (default: 30s):
+```python
+lazynet.get(urls, concurrency_limit=1000, timeout_secs=10)
+lazynet.Client(timeout_secs=5)
 ```
 
 ---
 
 ## Moderate Issues
 
-### 4. Ignored Channel Send Errors (Severity: MODERATE)
+### 4. Ignored Channel Send Errors (Severity: MODERATE) - Open
 
-**Locations**: `src/pipeline.rs:198`, `src/pipeline.rs:203`, `src/pipeline.rs:270`, `src/pipeline.rs:321`
+**Locations**: `src/pipeline.rs:214`, `src/pipeline.rs:219`, `src/pipeline.rs:286`, `src/pipeline.rs:337`
 
 ```rust
 let _ = self.cross_request_sender.send(RequestMsg::Element(url));
@@ -117,44 +106,25 @@ let _ = sender.send(ResponseMsg::Element(response)).await;
 
 ---
 
-### 5. Blocking Call in Async Context (Severity: MODERATE)
+### 5. ✅ Blocking Call in Async Context (Severity: MODERATE) - FIXED
 
-**Location**: `src/pipeline.rs:233`
+**Commit**: `7d67034`
 
+**Problem**: `crossbeam_channel::Receiver::recv()` was a blocking call inside an async function, blocking the tokio worker thread.
+
+**Fix Applied**: Used `tokio::task::spawn_blocking` to move the blocking receive to a dedicated thread pool:
 ```rust
-async fn async_request_task(...) {
-    loop {
-        match cross_request_receiver.recv() {  // BLOCKING!
-```
-
-**Problem**: `crossbeam_channel::Receiver::recv()` is a blocking call inside an async function. This works because it runs on a dedicated task, but it blocks the entire tokio worker thread.
-
-**Impact**: Reduces tokio scheduler efficiency. With many `Lazynet` instances, this could starve the runtime.
-
-**Recommendation**: Use `tokio::task::spawn_blocking` to move the blocking receive to a dedicated thread pool:
-```rust
-let msg = tokio::task::spawn_blocking(move || cross_request_receiver.recv())
+let receiver = cross_request_receiver.clone();
+let recv_result = tokio::task::spawn_blocking(move || receiver.recv())
     .await
-    .unwrap();
+    .expect("spawn_blocking task panicked");
 ```
 
 ---
 
-### 6. Unbounded Loop on All-Error Responses (Severity: LOW)
+### 6. ~~Unbounded Loop on All-Error Responses~~ (Severity: LOW) - No Longer Applicable
 
-**Location**: `src/lib.rs:143-157`
-
-```rust
-loop {
-    let rust_response = py.allow_threads(|| self.lazynet.recv());
-    match rust_response {
-        Some(r) => {
-            if r.error.is_some() {
-                continue;  // Could loop many times
-            }
-```
-
-**Problem**: If all remaining responses are errors, the loop continues until the channel closes. This is correct behavior but could cause unexpected latency.
+This issue was resolved by fix #1. Error responses are now returned to users instead of being skipped in a loop.
 
 ---
 
@@ -221,15 +191,13 @@ loop {
 
 ## Recommendations Summary
 
-### Must Fix (Before Production)
-1. **Expose errors to Python** - Don't silently drop failed requests
-2. **Fix UTF-8 slicing panic** - Use char-based truncation
+### ✅ Completed
+1. ~~**Expose errors to Python**~~ - Done (`c2cc760`)
+2. ~~**Fix UTF-8 slicing panic**~~ - Done (`c2cc760`)
+3. ~~**Add request timeouts**~~ - Done (`d53cb41`)
+4. ~~**Use spawn_blocking**~~ - Done (`7d67034`)
 
-### Should Fix (High Priority)
-3. **Add request timeouts** - Prevent hanging requests
-4. **Use spawn_blocking** - Don't block async threads
-
-### Nice to Have
+### Remaining (Nice to Have)
 5. **Add logging/tracing** - For production debugging
 6. **Upgrade reqwest to 0.12** - HTTP/2 support
 7. **Expand test coverage** - Mock server tests
@@ -239,6 +207,14 @@ loop {
 
 ## Conclusion
 
-This is a well-designed library that demonstrates strong Rust fundamentals. The async pipeline architecture is correct and efficient. The main issue is the silent error handling which could cause serious debugging headaches in production. With the critical issues addressed, this would be production-ready code.
+This is a well-designed library that demonstrates strong Rust fundamentals. The async pipeline architecture is correct and efficient.
 
-The codebase is maintainable, reasonably documented, and follows Rust idioms correctly. The PyO3 integration is clean and handles GIL correctly. I'd be comfortable approving this for production use after the critical issues are resolved.
+**All critical and high-priority issues have been resolved.** The library now:
+- Exposes HTTP errors to Python users via the `error` property
+- Safely handles UTF-8 strings in `__repr__`
+- Supports configurable request timeouts (default 30s)
+- Uses `spawn_blocking` to avoid blocking async worker threads
+
+The codebase is maintainable, reasonably documented, and follows Rust idioms correctly. The PyO3 integration is clean and handles GIL correctly.
+
+**Status: Production-ready.**
