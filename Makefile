@@ -1,4 +1,4 @@
-.PHONY: help install dev test lint coverage clean clean-all clean-build clean-pyc clean-test dist publish
+.PHONY: help install dev test lint coverage bench bench-rust bench-py clean clean-all clean-build clean-pyc clean-test dist publish
 .DEFAULT_GOAL := help
 
 help:
@@ -23,6 +23,16 @@ lint: ## Check style
 coverage: ## Check code coverage
 	uv run coverage run --source lazynet -m pytest
 	uv run coverage report -m
+
+##@ Benchmarks (requires server on localhost:8080)
+
+bench: bench-rust bench-py ## Run all benchmarks
+
+bench-rust: ## Run Rust benchmarks
+	cargo run --bin bench_runner --release
+
+bench-py: ## Run Python benchmarks (pytest-benchmark)
+	uv run pytest tests/test_perf.py --benchmark-only -v
 
 clean: clean-build clean-pyc clean-test ## Remove all build, test, coverage and Python artifacts
 
