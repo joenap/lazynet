@@ -14,7 +14,7 @@ const URL: &str = "http://127.0.0.1:8080/";
 fn run_benchmark(num_requests: usize, concurrency: usize) -> (usize, usize, std::time::Duration) {
     let start = Instant::now();
 
-    let lazynet = Lazynet::with_config(100, concurrency);
+    let lazynet = Lazynet::with_config(100, concurrency, 30);
 
     for _ in 0..num_requests {
         lazynet.send(URL.to_string());

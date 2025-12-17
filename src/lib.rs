@@ -8,7 +8,7 @@
 
 mod pipeline;
 
-use pipeline::{Lazynet, Response as RustResponse, SharedClient};
+use pipeline::{Lazynet, Response as RustResponse, SharedClient, DEFAULT_TIMEOUT_SECS};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyIterator, PyList, PyModule};
 
@@ -166,6 +166,9 @@ impl LazynetIterator {
 /// Use this when making multiple batches of requests to avoid
 /// ephemeral port exhaustion from TIME_WAIT connections.
 ///
+/// Args:
+///     timeout_secs: Request timeout in seconds (default: 30)
+///
 /// Example:
 ///     client = lazynet.Client()
 ///     for batch in batches:
@@ -179,9 +182,11 @@ pub struct Client {
 #[pymethods]
 impl Client {
     #[new]
-    fn new() -> Self {
+    #[pyo3(signature = (timeout_secs=None))]
+    fn new(timeout_secs: Option<u64>) -> Self {
+        let timeout = timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS);
         Client {
-            shared_client: SharedClient::new(),
+            shared_client: SharedClient::with_timeout(timeout),
         }
     }
 
@@ -238,6 +243,7 @@ impl ClientIterator {
 /// Args:
 ///     urls: An iterable of URL strings
 ///     concurrency_limit: Maximum concurrent requests (default: 1000)
+///     timeout_secs: Request timeout in seconds (default: 30)
 ///
 /// Returns:
 ///     An iterator of Response objects
@@ -247,9 +253,14 @@ impl ClientIterator {
 ///     for response in lazynet.get(urls):
 ///         print(response.status, response.text)
 #[pyfunction]
-#[pyo3(signature = (urls, concurrency_limit=1000))]
-fn get(urls: &Bound<'_, PyIterator>, concurrency_limit: usize) -> PyResult<LazynetIterator> {
-    let lazynet = Lazynet::with_config(100, concurrency_limit);
+#[pyo3(signature = (urls, concurrency_limit=1000, timeout_secs=None))]
+fn get(
+    urls: &Bound<'_, PyIterator>,
+    concurrency_limit: usize,
+    timeout_secs: Option<u64>,
+) -> PyResult<LazynetIterator> {
+    let timeout = timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS);
+    let lazynet = Lazynet::with_config(100, concurrency_limit, timeout);
 
     // Consume the Python iterator and send URLs to the pipeline
     for url_result in urls.try_iter()? {

@@ -4,7 +4,11 @@
 //! URLs are sent into the pipeline, and responses are pulled out one at a time.
 
 use std::sync::Arc;
+use std::time::Duration;
 use tokio_util::task::TaskTracker;
+
+/// Default request timeout in seconds.
+pub const DEFAULT_TIMEOUT_SECS: u64 = 30;
 
 /// Request message sent into the pipeline.
 #[derive(Clone)]
@@ -72,10 +76,18 @@ pub struct SharedClient {
 
 #[allow(dead_code)] // Used by lib.rs, not bench_runner
 impl SharedClient {
-    /// Create a new shared HTTP client with its own runtime.
+    /// Create a new shared HTTP client with its own runtime and default timeout.
     pub fn new() -> Self {
+        Self::with_timeout(DEFAULT_TIMEOUT_SECS)
+    }
+
+    /// Create a new shared HTTP client with a custom timeout in seconds.
+    pub fn with_timeout(timeout_secs: u64) -> Self {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(timeout_secs))
+            .build()
+            .expect("Failed to create HTTP client");
         SharedClient { rt, client }
     }
 
@@ -133,29 +145,33 @@ impl Default for SharedClient {
 }
 
 impl Lazynet {
-    /// Create a new Lazynet instance with default settings (1000 concurrency).
+    /// Create a new Lazynet instance with default settings (1000 concurrency, 30s timeout).
     pub fn new() -> Self {
-        Self::with_config(100, 1000)
+        Self::with_config(100, 1000, DEFAULT_TIMEOUT_SECS)
     }
 
-    /// Create a new Lazynet instance with custom buffer size and concurrency limit.
-    pub fn with_config(buf_size: usize, concurrency_limit: usize) -> Self {
-        Self::with_client(None, buf_size, concurrency_limit)
+    /// Create a new Lazynet instance with custom buffer size, concurrency limit, and timeout.
+    pub fn with_config(buf_size: usize, concurrency_limit: usize, timeout_secs: u64) -> Self {
+        Self::with_client(None, buf_size, concurrency_limit, timeout_secs)
     }
 
     /// Create a new Lazynet instance with an optional shared client.
-    /// If no client is provided, creates a new one.
+    /// If no client is provided, creates a new one with the specified timeout.
     pub fn with_client(
         shared_client: Option<&SharedClient>,
         buf_size: usize,
         concurrency_limit: usize,
+        timeout_secs: u64,
     ) -> Self {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
 
-        // Use provided client or create a new one
+        // Use provided client or create a new one with timeout
         let http_client = match shared_client {
             Some(sc) => sc.client.clone(),
-            None => reqwest::Client::new(),
+            None => reqwest::Client::builder()
+                .timeout(Duration::from_secs(timeout_secs))
+                .build()
+                .expect("Failed to create HTTP client"),
         };
 
         // Create channels for the pipeline
