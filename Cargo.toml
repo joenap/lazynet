@@ -6,7 +6,7 @@ autobenches = false
 
 [lib]
 name = "_lazynet"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 crossbeam-channel = "0.5"

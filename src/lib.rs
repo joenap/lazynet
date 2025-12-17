@@ -7,9 +7,10 @@
 //!         print(response.status, response.text[:50])
 
 mod http_client;
-mod pipeline;
+pub mod pipeline;
 
-use pipeline::{Lazynet, Response as RustResponse, SharedClient, DEFAULT_TIMEOUT_SECS};
+pub use pipeline::{Lazynet, Response as RustResponse, DEFAULT_TIMEOUT_SECS};
+use pipeline::SharedClient;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyIterator, PyList, PyModule};
 

@@ -3,10 +3,7 @@
 //! Prerequisites: HTTP server running on localhost:8080
 //! Run with: cargo run --bin bench_runner --release
 
-#[path = "../src/pipeline.rs"]
-mod pipeline;
-
-use pipeline::Lazynet;
+use _lazynet::Lazynet;
 use std::time::Instant;
 
 const URL: &str = "http://127.0.0.1:8080/";

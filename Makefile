@@ -18,7 +18,7 @@ test: ## Run tests
 
 lint: ## Check style
 	uv run ruff check lazynet tests
-	cargo clippy --lib
+	cargo clippy
 
 coverage: ## Check code coverage
 	uv run coverage run --source lazynet -m pytest
