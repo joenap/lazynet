@@ -21,6 +21,7 @@ pub enum ResponseMsg {
 
 /// HTTP response with metadata.
 #[derive(Clone, Debug)]
+#[allow(dead_code)] // Fields used by lib.rs, not bench_runner
 pub struct Response {
     pub request: String,
     pub status: u16,
@@ -63,11 +64,13 @@ pub struct Lazynet {
 }
 
 /// Shared HTTP client with its own runtime for connection pooling.
+#[allow(dead_code)] // Used by lib.rs, not bench_runner
 pub struct SharedClient {
     rt: tokio::runtime::Runtime,
     client: reqwest::Client,
 }
 
+#[allow(dead_code)] // Used by lib.rs, not bench_runner
 impl SharedClient {
     /// Create a new shared HTTP client with its own runtime.
     pub fn new() -> Self {
