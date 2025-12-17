@@ -241,12 +241,19 @@ impl Default for Lazynet {
 // =============================================================================
 
 /// Bridge from sync crossbeam channel to async tokio channel.
+/// Uses spawn_blocking to avoid blocking the async runtime's worker threads.
 async fn async_request_task(
     cross_request_receiver: crossbeam_channel::Receiver<RequestMsg>,
     async_request_sender: tokio::sync::mpsc::Sender<RequestMsg>,
 ) {
     loop {
-        match cross_request_receiver.recv() {
+        // Move blocking recv to dedicated thread pool to avoid blocking async workers
+        let receiver = cross_request_receiver.clone();
+        let recv_result = tokio::task::spawn_blocking(move || receiver.recv())
+            .await
+            .expect("spawn_blocking task panicked");
+
+        match recv_result {
             Ok(msg) => {
                 let is_end = matches!(msg, RequestMsg::End);
                 if async_request_sender.send(msg).await.is_err() {
