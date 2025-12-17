@@ -28,6 +28,7 @@ dev = [
     "coverage>=7.3",
     "flake8>=6.1",
     "maturin>=1.4,<2.0",
+    "ruff>=0.14.9",
 ]
 
 [tool.maturin]
