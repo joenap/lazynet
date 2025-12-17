@@ -6,6 +6,7 @@
 //!     for response in lazynet.get(urls):
 //!         print(response.status, response.text[:50])
 
+mod http_client;
 mod pipeline;
 
 use pipeline::{Lazynet, Response as RustResponse, SharedClient, DEFAULT_TIMEOUT_SECS};
