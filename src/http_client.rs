@@ -155,6 +155,7 @@ pub mod mock {
         }
 
         /// Get all URLs that were requested.
+        #[allow(dead_code)]
         pub fn get_requests(&self) -> Vec<String> {
             self.requests.lock().unwrap().clone()
         }
