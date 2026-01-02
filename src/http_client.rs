@@ -59,37 +59,143 @@ impl HttpClient for ReqwestClient {
         }
 
         match request.send().await {
-            Ok(resp) => {
-                let status = resp.status().as_u16();
-                let reason = resp
-                    .status()
-                    .canonical_reason()
-                    .unwrap_or("Unknown")
-                    .to_string();
-
-                // Capture response headers
-                let response_headers: HashMap<String, String> = resp
-                    .headers()
-                    .iter()
-                    .filter_map(|(k, v)| {
-                        v.to_str()
-                            .ok()
-                            .map(|val| (k.as_str().to_string(), val.to_string()))
-                    })
-                    .collect();
-
-                match resp.text().await {
-                    Ok(text) => Response::success(
-                        url.to_string(),
-                        status,
-                        reason,
-                        text,
-                        Some(response_headers),
-                    ),
-                    Err(e) => Response::error(url.to_string(), e.to_string()),
+            Ok(resp) => self.handle_success(url, resp).await,
+            Err(e) => {
+                // Check if this is an SSL certificate name mismatch error
+                // This happens when a domain's cert doesn't match (e.g., redirect target differs)
+                let error_str = e.to_string();
+                if error_str.contains("NotValidForName") && url.starts_with("https://") {
+                    // Try HTTP to discover the redirect, then follow it
+                    self.try_http_redirect_fallback(url, headers).await
+                } else {
+                    Response::error(url.to_string(), error_str)
                 }
             }
+        }
+    }
+}
+
+impl ReqwestClient {
+    /// Handle a successful response, extracting status, headers, and body.
+    async fn handle_success(&self, url: &str, resp: reqwest::Response) -> Response {
+        let final_url = resp.url().to_string();
+        let status = resp.status().as_u16();
+        let reason = resp
+            .status()
+            .canonical_reason()
+            .unwrap_or("Unknown")
+            .to_string();
+
+        // Capture response headers
+        let response_headers: HashMap<String, String> = resp
+            .headers()
+            .iter()
+            .filter_map(|(k, v)| {
+                v.to_str()
+                    .ok()
+                    .map(|val| (k.as_str().to_string(), val.to_string()))
+            })
+            .collect();
+
+        match resp.text().await {
+            Ok(text) => Response::success(
+                final_url,
+                status,
+                reason,
+                text,
+                Some(response_headers),
+            ),
             Err(e) => Response::error(url.to_string(), e.to_string()),
+        }
+    }
+
+    /// When HTTPS fails with a cert name mismatch, try HTTP to discover redirect.
+    ///
+    /// This handles cases where a domain redirects to another host whose cert
+    /// doesn't cover the original domain name.
+    async fn try_http_redirect_fallback(
+        &self,
+        url: &str,
+        headers: Option<&HashMap<String, String>>,
+    ) -> Response {
+        // Convert https:// to http:// to discover the redirect
+        let http_url = url.replacen("https://", "http://", 1);
+
+        // Build a client that doesn't follow redirects - we just want the Location header
+        let no_redirect_client = match reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+        {
+            Ok(c) => c,
+            Err(e) => return Response::error(url.to_string(), format!("fallback client error: {}", e)),
+        };
+
+        let mut request = no_redirect_client.get(&http_url);
+        if let Some(hdrs) = headers {
+            for (key, value) in hdrs {
+                request = request.header(key.as_str(), value.as_str());
+            }
+        }
+
+        match request.send().await {
+            Ok(resp) => {
+                let status = resp.status().as_u16();
+
+                // Check for redirect status codes
+                if (301..=308).contains(&status) {
+                    if let Some(location) = resp.headers().get("location") {
+                        if let Ok(location_str) = location.to_str() {
+                            // Follow the redirect with HTTPS
+                            let redirect_url = if location_str.starts_with("http") {
+                                location_str.to_string()
+                            } else if location_str.starts_with("/") {
+                                // Relative redirect - construct full URL
+                                // http_url is like "http://host/path", find the / after "http://"
+                                let after_scheme = &http_url[7..]; // skip "http://"
+                                if let Some(path_start) = after_scheme.find('/') {
+                                    let host = &after_scheme[..path_start];
+                                    format!("https://{}{}", host, location_str)
+                                } else {
+                                    // No path, just host
+                                    format!("https://{}{}", after_scheme, location_str)
+                                }
+                            } else {
+                                location_str.to_string()
+                            };
+
+                            // Ensure we use HTTPS for the final request
+                            let https_redirect = if redirect_url.starts_with("http://") {
+                                redirect_url.replacen("http://", "https://", 1)
+                            } else {
+                                redirect_url
+                            };
+
+                            // Now make the actual request to the redirect target
+                            let mut final_request = self.client.get(&https_redirect);
+                            if let Some(hdrs) = headers {
+                                for (key, value) in hdrs {
+                                    final_request = final_request.header(key.as_str(), value.as_str());
+                                }
+                            }
+
+                            match final_request.send().await {
+                                Ok(final_resp) => return self.handle_success(url, final_resp).await,
+                                Err(e) => return Response::error(url.to_string(), format!("redirect follow error: {}", e)),
+                            }
+                        }
+                    }
+                }
+
+                // Not a redirect or couldn't parse - return original error context
+                Response::error(
+                    url.to_string(),
+                    format!("SSL cert mismatch, HTTP fallback got status {} (expected redirect)", status),
+                )
+            }
+            Err(e) => Response::error(
+                url.to_string(),
+                format!("SSL cert mismatch, HTTP fallback failed: {}", e),
+            ),
         }
     }
 }
