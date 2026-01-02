@@ -28,6 +28,9 @@ pub struct Response {
     /// Error message if the request failed, None if successful.
     #[pyo3(get)]
     pub error: Option<String>,
+    /// Response headers from the server.
+    #[pyo3(get)]
+    pub headers: Option<std::collections::HashMap<String, String>>,
     // Store parsed JSON as a Python object
     json_value: Option<Py<PyAny>>,
 }
@@ -40,6 +43,7 @@ impl Clone for Response {
             reason: self.reason.clone(),
             text: self.text.clone(),
             error: self.error.clone(),
+            headers: self.headers.clone(),
             json_value: self.json_value.as_ref().map(|v| v.clone_ref(py)),
         })
     }
@@ -60,14 +64,16 @@ impl Response {
         // Use char-based truncation to avoid panic on multi-byte UTF-8
         let text_preview: String = self.text.chars().take(50).collect();
         let ellipsis = if self.text.chars().count() > 50 { "..." } else { "" };
+        let header_count = self.headers.as_ref().map(|h| h.len()).unwrap_or(0);
         format!(
-            "Response(request='{}', status={}, reason='{}', text='{}{}', error={:?})",
+            "Response(request='{}', status={}, reason='{}', text='{}{}', error={:?}, headers={})",
             self.request,
             self.status,
             self.reason,
             text_preview,
             ellipsis,
-            self.error
+            self.error,
+            header_count
         )
     }
 
@@ -81,6 +87,7 @@ impl Response {
             && self.reason == other.reason
             && self.text == other.text
             && self.error == other.error
+            && self.headers == other.headers
     }
 }
 
@@ -103,6 +110,7 @@ impl Response {
             reason: r.reason,
             text: r.text,
             error: r.error,
+            headers: r.headers,
             json_value,
         })
     }
@@ -170,25 +178,31 @@ impl LazynetIterator {
 ///
 /// Args:
 ///     timeout_secs: Request timeout in seconds (default: 30)
+///     default_headers: Default headers to send with every request
 ///
 /// Example:
-///     client = lazynet.Client()
+///     client = lazynet.Client(default_headers={"User-Agent": "MyBot/1.0"})
 ///     for batch in batches:
 ///         for response in client.get(batch):
-///             print(response.status)
+///             print(response.status, response.headers)
 #[pyclass]
 pub struct Client {
     shared_client: SharedClient,
+    default_headers: Option<std::collections::HashMap<String, String>>,
 }
 
 #[pymethods]
 impl Client {
     #[new]
-    #[pyo3(signature = (timeout_secs=None))]
-    fn new(timeout_secs: Option<u64>) -> Self {
+    #[pyo3(signature = (timeout_secs=None, default_headers=None))]
+    fn new(
+        timeout_secs: Option<u64>,
+        default_headers: Option<std::collections::HashMap<String, String>>,
+    ) -> Self {
         let timeout = timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS);
         Client {
             shared_client: SharedClient::with_timeout(timeout),
+            default_headers,
         }
     }
 
@@ -197,19 +211,39 @@ impl Client {
     /// Args:
     ///     urls: An iterable of URL strings
     ///     concurrency_limit: Maximum concurrent requests (default: 1000)
+    ///     headers: Optional headers to override defaults for this batch
     ///
     /// Returns:
     ///     An iterator of Response objects
-    #[pyo3(signature = (urls, concurrency_limit=1000))]
-    fn get(&self, urls: &Bound<'_, PyIterator>, concurrency_limit: usize) -> PyResult<ClientIterator> {
+    #[pyo3(signature = (urls, concurrency_limit=1000, headers=None))]
+    fn get(
+        &self,
+        urls: &Bound<'_, PyIterator>,
+        concurrency_limit: usize,
+        headers: Option<std::collections::HashMap<String, String>>,
+    ) -> PyResult<ClientIterator> {
         // Collect URLs into a Vec
         let url_vec: Vec<String> = urls
             .try_iter()?
             .map(|r| r.and_then(|obj| obj.extract::<String>()))
             .collect::<PyResult<Vec<_>>>()?;
 
-        // Use SharedClient::get which uses the shared runtime
-        let receiver = self.shared_client.get(url_vec, concurrency_limit);
+        // Merge headers: batch headers override default headers
+        let effective_headers = match (&self.default_headers, headers) {
+            (Some(defaults), Some(overrides)) => {
+                let mut merged = defaults.clone();
+                merged.extend(overrides);
+                Some(merged)
+            }
+            (Some(defaults), None) => Some(defaults.clone()),
+            (None, Some(overrides)) => Some(overrides),
+            (None, None) => None,
+        };
+
+        // Use SharedClient::get_with_headers which uses the shared runtime
+        let receiver =
+            self.shared_client
+                .get_with_headers(url_vec, concurrency_limit, effective_headers);
 
         Ok(ClientIterator { receiver })
     }
@@ -246,20 +280,22 @@ impl ClientIterator {
 ///     urls: An iterable of URL strings
 ///     concurrency_limit: Maximum concurrent requests (default: 1000)
 ///     timeout_secs: Request timeout in seconds (default: 30)
+///     headers: Optional headers to send with every request
 ///
 /// Returns:
 ///     An iterator of Response objects
 ///
 /// Example:
 ///     urls = (f"http://example.com/{i}" for i in range(100))
-///     for response in lazynet.get(urls):
-///         print(response.status, response.text)
+///     for response in lazynet.get(urls, headers={"User-Agent": "MyBot/1.0"}):
+///         print(response.status, response.headers)
 #[pyfunction]
-#[pyo3(signature = (urls, concurrency_limit=1000, timeout_secs=None))]
+#[pyo3(signature = (urls, concurrency_limit=1000, timeout_secs=None, headers=None))]
 fn get(
     urls: &Bound<'_, PyIterator>,
     concurrency_limit: usize,
     timeout_secs: Option<u64>,
+    headers: Option<std::collections::HashMap<String, String>>,
 ) -> PyResult<LazynetIterator> {
     let timeout = timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS);
     let lazynet = Lazynet::with_config(100, concurrency_limit, timeout);
@@ -267,7 +303,7 @@ fn get(
     // Consume the Python iterator and send URLs to the pipeline
     for url_result in urls.try_iter()? {
         let url: String = url_result?.extract()?;
-        lazynet.send(url);
+        lazynet.send_with_headers(url, headers.clone());
     }
     lazynet.send_end();
 

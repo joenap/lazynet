@@ -4,6 +4,7 @@
 //! dependency injection and mocking for tests.
 
 use crate::pipeline::Response;
+use std::collections::HashMap;
 use std::future::Future;
 use std::time::Duration;
 
@@ -12,10 +13,14 @@ use std::time::Duration;
 /// Implementations must be `Send + Sync + Clone` to work with
 /// the async pipeline across thread boundaries.
 pub trait HttpClient: Send + Sync + Clone + 'static {
-    /// Perform an HTTP GET request to the given URL.
+    /// Perform an HTTP GET request to the given URL with optional headers.
     ///
     /// Returns a `Response` containing either success data or error information.
-    fn get(&self, url: &str) -> impl Future<Output = Response> + Send;
+    fn get(
+        &self,
+        url: &str,
+        headers: Option<&HashMap<String, String>>,
+    ) -> impl Future<Output = Response> + Send;
 }
 
 /// Production HTTP client implementation using reqwest.
@@ -29,6 +34,9 @@ impl ReqwestClient {
     pub fn new(timeout_secs: u64) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(timeout_secs))
+            .gzip(true)
+            .brotli(true)
+            .deflate(true)
             .build()
             .expect("Failed to create HTTP client");
         Self { client }
@@ -41,8 +49,16 @@ impl ReqwestClient {
 }
 
 impl HttpClient for ReqwestClient {
-    async fn get(&self, url: &str) -> Response {
-        match self.client.get(url).send().await {
+    async fn get(&self, url: &str, headers: Option<&HashMap<String, String>>) -> Response {
+        // Build request with optional headers
+        let mut request = self.client.get(url);
+        if let Some(hdrs) = headers {
+            for (key, value) in hdrs {
+                request = request.header(key.as_str(), value.as_str());
+            }
+        }
+
+        match request.send().await {
             Ok(resp) => {
                 let status = resp.status().as_u16();
                 let reason = resp
@@ -51,8 +67,25 @@ impl HttpClient for ReqwestClient {
                     .unwrap_or("Unknown")
                     .to_string();
 
+                // Capture response headers
+                let response_headers: HashMap<String, String> = resp
+                    .headers()
+                    .iter()
+                    .filter_map(|(k, v)| {
+                        v.to_str()
+                            .ok()
+                            .map(|val| (k.as_str().to_string(), val.to_string()))
+                    })
+                    .collect();
+
                 match resp.text().await {
-                    Ok(text) => Response::success(url.to_string(), status, reason, text),
+                    Ok(text) => Response::success(
+                        url.to_string(),
+                        status,
+                        reason,
+                        text,
+                        Some(response_headers),
+                    ),
                     Err(e) => Response::error(url.to_string(), e.to_string()),
                 }
             }
@@ -173,7 +206,7 @@ pub mod mock {
     }
 
     impl HttpClient for MockHttpClient {
-        async fn get(&self, url: &str) -> Response {
+        async fn get(&self, url: &str, _headers: Option<&HashMap<String, String>>) -> Response {
             // Record the request
             self.requests.lock().unwrap().push(url.to_string());
 
@@ -199,6 +232,7 @@ pub mod mock {
                     mock_resp.status,
                     mock_resp.reason,
                     mock_resp.text,
+                    None, // Mock doesn't return headers
                 ),
             }
         }

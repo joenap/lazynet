@@ -4,6 +4,7 @@
 //! URLs are sent into the pipeline, and responses are pulled out one at a time.
 
 use crate::http_client::{HttpClient, ReqwestClient};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_util::task::TaskTracker;
@@ -14,7 +15,10 @@ pub const DEFAULT_TIMEOUT_SECS: u64 = 30;
 /// Request message sent into the pipeline.
 #[derive(Clone)]
 pub enum RequestMsg {
-    Element(String),
+    Element {
+        url: String,
+        headers: Option<HashMap<String, String>>,
+    },
     End,
 }
 
@@ -33,17 +37,25 @@ pub struct Response {
     pub reason: String,
     pub text: String,
     pub error: Option<String>,
+    pub headers: Option<HashMap<String, String>>,
 }
 
 impl Response {
-    /// Create a successful response.
-    pub fn success(request: String, status: u16, reason: String, text: String) -> Self {
+    /// Create a successful response with headers.
+    pub fn success(
+        request: String,
+        status: u16,
+        reason: String,
+        text: String,
+        headers: Option<HashMap<String, String>>,
+    ) -> Self {
         Response {
             request,
             status,
             reason,
             text,
             error: None,
+            headers,
         }
     }
 
@@ -55,6 +67,7 @@ impl Response {
             reason: String::new(),
             text: String::new(),
             error: Some(error),
+            headers: None,
         }
     }
 }
@@ -98,6 +111,16 @@ impl SharedClient {
         urls: Vec<String>,
         concurrency_limit: usize,
     ) -> crossbeam_channel::Receiver<ResponseMsg> {
+        self.get_with_headers(urls, concurrency_limit, None)
+    }
+
+    /// Make requests with custom headers using this client's runtime.
+    pub fn get_with_headers(
+        &self,
+        urls: Vec<String>,
+        concurrency_limit: usize,
+        headers: Option<HashMap<String, String>>,
+    ) -> crossbeam_channel::Receiver<ResponseMsg> {
         let buf_size = 100;
 
         let (async_request_sender, async_request_receiver) =
@@ -113,7 +136,10 @@ impl SharedClient {
         self.rt.spawn(async move {
             for url in urls {
                 if async_request_sender
-                    .send(RequestMsg::Element(url))
+                    .send(RequestMsg::Element {
+                        url,
+                        headers: headers.clone(),
+                    })
                     .await
                     .is_err()
                 {
@@ -228,7 +254,14 @@ impl Lazynet {
 
     /// Send a URL into the pipeline.
     pub fn send(&self, url: String) {
-        let _ = self.cross_request_sender.send(RequestMsg::Element(url));
+        self.send_with_headers(url, None);
+    }
+
+    /// Send a URL with custom headers into the pipeline.
+    pub fn send_with_headers(&self, url: String, headers: Option<HashMap<String, String>>) {
+        let _ = self
+            .cross_request_sender
+            .send(RequestMsg::Element { url, headers });
     }
 
     /// Signal that no more URLs will be sent.
@@ -304,12 +337,12 @@ async fn async_http_client_task<C: HttpClient>(
         let permit = semaphore.clone().acquire_owned().await;
 
         match async_request_receiver.recv().await {
-            Some(RequestMsg::Element(url)) => {
+            Some(RequestMsg::Element { url, headers }) => {
                 let client = http_client.clone();
                 let sender = async_response_sender.clone();
 
                 tracker.spawn(async move {
-                    let response = client.get(&url).await;
+                    let response = client.get(&url, headers.as_ref()).await;
                     drop(permit); // Release permit after request completes
                     let _ = sender.send(ResponseMsg::Element(response)).await;
                 });
@@ -383,6 +416,7 @@ mod tests {
                 200,
                 "OK".to_string(),
                 r#"{"users": []}"#.to_string(),
+                None,
             );
 
             assert_eq!(response.request, "http://api.example.com/users");
@@ -413,6 +447,7 @@ mod tests {
                 201,
                 "Created".to_string(),
                 "Resource created".to_string(),
+                None,
             );
 
             let cloned = original.clone();
@@ -422,6 +457,7 @@ mod tests {
             assert_eq!(cloned.reason, original.reason);
             assert_eq!(cloned.text, original.text);
             assert_eq!(cloned.error, original.error);
+            assert_eq!(cloned.headers, original.headers);
         }
     }
 
