@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "lazynet"
-version = "0.6.0"
+version = "0.7.0"
 description = "Lazy-evaluated, asynchronous HTTP requests powered by Rust"
 authors = [{ name = "Joe Nap", email = "joenap@gmail.com" }]
 license = { text = "MIT" }
@@ -23,6 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Internet :: WWW/HTTP",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]

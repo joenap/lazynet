@@ -30,7 +30,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13
+          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13 3.14
           manylinux: auto
 
       - name: Upload wheels
@@ -59,7 +59,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13
+          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13 3.14
           manylinux: musllinux_1_2
 
       - name: Upload wheels
@@ -84,7 +84,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}-apple-darwin
-          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13
+          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13 3.14
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -109,7 +109,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: x86_64-pc-windows-msvc
-          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13
+          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13 3.14
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
