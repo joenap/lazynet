@@ -69,6 +69,15 @@ clean-test:
 	rm -rf htmlcov/
 	rm -rf .pytest_cache
 
+# Release
+
+# Bump version (e.g., just bump 0.9.0)
+bump version:
+	sed -i '' 's/^version = ".*"/version = "{{version}}"/' Cargo.toml pyproject.toml
+	git add Cargo.toml pyproject.toml
+	git commit -m "Bump version to {{version}}"
+	git tag v{{version}}
+
 # Distribute
 
 # Build wheels

@@ -1,6 +1,8 @@
 __author__ = 'Joe Nap'
 __email__ = 'joenap@gmail.com'
-__version__ = '0.5.0'
+
+from importlib.metadata import version as _version
+__version__ = _version('lazynet')
 
 from ._lazynet import get, Response, Client
 

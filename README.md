@@ -50,6 +50,23 @@ tested on a 16 core AM5 cpu (32 HT cores), getting a whopping ~360k requests per
 All performance tests are performed against a local nginx server. On Macos you will hit file limits
 long before the performance bottleneck.
 
+### macOS nginx setup
+
+Config: `/opt/homebrew/etc/nginx/nginx.conf`
+
+```nginx
+worker_rlimit_nofile 65535;
+events {
+    worker_connections 16384;
+}
+```
+
+```bash
+nginx -t                        # Test config
+brew services restart nginx     # Restart
+tail -f /opt/homebrew/var/log/nginx/error.log
+```
+
 ## History
 
 2015: The original concept was explored [here](https://stackoverflow.com/questions/31869593/yielding-a-value-from-a-coroutine-in-python-a-k-a-convert-callback-to-generato)
