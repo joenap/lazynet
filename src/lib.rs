@@ -15,7 +15,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyIterator, PyList, PyModule};
 
 /// HTTP response returned from lazynet.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 pub struct Response {
     #[pyo3(get)]
     pub request: String,
@@ -37,7 +37,7 @@ pub struct Response {
 
 impl Clone for Response {
     fn clone(&self) -> Self {
-        Python::with_gil(|py| Response {
+        Python::attach(|py| Response {
             request: self.request.clone(),
             status: self.status,
             reason: self.reason.clone(),
@@ -53,7 +53,7 @@ impl Clone for Response {
 impl Response {
     /// Get the parsed JSON response body.
     #[getter]
-    fn json(&self, py: Python<'_>) -> PyResult<PyObject> {
+    fn json(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.json_value {
             Some(val) => Ok(val.clone_ref(py)),
             None => Ok(py.None()),
@@ -117,7 +117,7 @@ impl Response {
 }
 
 /// Convert a serde_json::Value to a Python object.
-fn json_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<PyObject> {
+fn json_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<PyAny>> {
     match value {
         serde_json::Value::Null => Ok(py.None()),
         serde_json::Value::Bool(b) => Ok(b.into_pyobject(py)?.to_owned().into_any().unbind()),
@@ -162,7 +162,7 @@ impl LazynetIterator {
 
     fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<Response>> {
         // Release the GIL while blocking on the channel
-        let rust_response = py.allow_threads(|| self.lazynet.recv());
+        let rust_response = py.detach(|| self.lazynet.recv());
 
         match rust_response {
             Some(r) => Ok(Some(Response::from_rust_response(py, r)?)),
@@ -262,7 +262,7 @@ impl ClientIterator {
     }
 
     fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<Response>> {
-        let msg = py.allow_threads(|| self.receiver.recv());
+        let msg = py.detach(|| self.receiver.recv());
 
         match msg {
             Ok(pipeline::ResponseMsg::Element(r)) => {
