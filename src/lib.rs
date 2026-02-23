@@ -25,6 +25,9 @@ pub struct Response {
     pub reason: String,
     #[pyo3(get)]
     pub text: String,
+    /// Raw response bytes.
+    #[pyo3(get)]
+    pub bytes: Vec<u8>,
     /// Error message if the request failed, None if successful.
     #[pyo3(get)]
     pub error: Option<String>,
@@ -42,6 +45,7 @@ impl Clone for Response {
             status: self.status,
             reason: self.reason.clone(),
             text: self.text.clone(),
+            bytes: self.bytes.clone(),
             error: self.error.clone(),
             headers: self.headers.clone(),
             json_value: self.json_value.as_ref().map(|v| v.clone_ref(py)),
@@ -109,6 +113,7 @@ impl Response {
             status: r.status,
             reason: r.reason,
             text: r.text,
+            bytes: r.bytes,
             error: r.error,
             headers: r.headers,
             json_value,
@@ -209,7 +214,7 @@ impl Client {
     /// Make HTTP GET requests using the shared connection pool.
     ///
     /// Args:
-    ///     urls: An iterable of URL strings
+    ///     urls: An iterable of URL strings, or (url, headers_dict) tuples
     ///     concurrency_limit: Maximum concurrent requests (default: 1000)
     ///     headers: Optional headers to override defaults for this batch
     ///
@@ -222,37 +227,83 @@ impl Client {
         concurrency_limit: usize,
         headers: Option<std::collections::HashMap<String, String>>,
     ) -> PyResult<ClientIterator> {
-        // Collect URLs into a Vec
-        let url_vec: Vec<String> = urls
-            .try_iter()?
-            .map(|r| r.and_then(|obj| obj.extract::<String>()))
-            .collect::<PyResult<Vec<_>>>()?;
-
-        // Merge headers: batch headers override default headers
-        let effective_headers = match (&self.default_headers, headers) {
+        // Merge batch headers with default headers
+        let batch_headers = match (&self.default_headers, &headers) {
             (Some(defaults), Some(overrides)) => {
                 let mut merged = defaults.clone();
-                merged.extend(overrides);
+                merged.extend(overrides.clone());
                 Some(merged)
             }
             (Some(defaults), None) => Some(defaults.clone()),
-            (None, Some(overrides)) => Some(overrides),
+            (None, Some(overrides)) => Some(overrides.clone()),
             (None, None) => None,
         };
 
-        // Use SharedClient::get_with_headers which uses the shared runtime
-        let receiver =
-            self.shared_client
-                .get_with_headers(url_vec, concurrency_limit, effective_headers);
+        // Check if any items are tuples with per-request headers
+        let mut has_per_request_headers = false;
+        let mut per_request: Vec<(String, Option<std::collections::HashMap<String, String>>)> = Vec::new();
 
-        Ok(ClientIterator { receiver })
+        for item_result in urls.try_iter()? {
+            let item = item_result?;
+
+            if let Ok(tuple) = item.extract::<(String, std::collections::HashMap<String, String>)>() {
+                has_per_request_headers = true;
+                per_request.push((tuple.0, Some(tuple.1)));
+            } else {
+                let url: String = item.extract()?;
+                per_request.push((url, None));
+            }
+        }
+
+        if has_per_request_headers {
+            // Use Lazynet pipeline directly to support per-request headers
+            let lazynet = Lazynet::with_client(
+                Some(&self.shared_client),
+                100,
+                concurrency_limit,
+                DEFAULT_TIMEOUT_SECS,
+            );
+
+            for (url, pr_headers) in per_request {
+                let merged = merge_headers(&batch_headers, pr_headers);
+                lazynet.send_with_headers(url, merged);
+            }
+            lazynet.send_end();
+
+            Ok(ClientIterator::from_lazy(lazynet))
+        } else {
+            // Fast path: no per-request headers, use SharedClient directly
+            let url_vec: Vec<String> = per_request.into_iter().map(|(url, _)| url).collect();
+
+            let receiver =
+                self.shared_client
+                    .get_with_headers(url_vec, concurrency_limit, batch_headers);
+
+            Ok(ClientIterator::from_shared(receiver))
+        }
     }
+}
+
+/// Internal enum for client iterator backends.
+enum ClientIteratorInner {
+    Shared(crossbeam_channel::Receiver<pipeline::ResponseMsg>),
+    Lazy(Lazynet),
 }
 
 /// Iterator that yields HTTP responses from a Client.
 #[pyclass]
 pub struct ClientIterator {
-    receiver: crossbeam_channel::Receiver<pipeline::ResponseMsg>,
+    inner: ClientIteratorInner,
+}
+
+impl ClientIterator {
+    fn from_shared(receiver: crossbeam_channel::Receiver<pipeline::ResponseMsg>) -> Self {
+        ClientIterator { inner: ClientIteratorInner::Shared(receiver) }
+    }
+
+    fn from_lazy(lazynet: Lazynet) -> Self {
+        ClientIterator { inner: ClientIteratorInner::Lazy(lazynet) }
+    }
 }
 
 #[pymethods]
@@ -262,22 +313,50 @@ impl ClientIterator {
     }
 
     fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<Response>> {
-        let msg = py.detach(|| self.receiver.recv());
-
-        match msg {
-            Ok(pipeline::ResponseMsg::Element(r)) => {
-                Ok(Some(Response::from_rust_response(py, r)?))
+        match &self.inner {
+            ClientIteratorInner::Shared(receiver) => {
+                let msg = py.detach(|| receiver.recv());
+                match msg {
+                    Ok(pipeline::ResponseMsg::Element(r)) => {
+                        Ok(Some(Response::from_rust_response(py, r)?))
+                    }
+                    Ok(pipeline::ResponseMsg::End) => Ok(None),
+                    Err(_) => Ok(None),
+                }
             }
-            Ok(pipeline::ResponseMsg::End) => Ok(None),
-            Err(_) => Ok(None),
+            ClientIteratorInner::Lazy(lazynet) => {
+                let rust_response = py.detach(|| lazynet.recv());
+                match rust_response {
+                    Some(r) => Ok(Some(Response::from_rust_response(py, r)?)),
+                    None => Ok(None),
+                }
+            }
         }
+    }
+}
+
+/// Merge batch-level headers with per-request headers.
+/// Per-request headers override batch-level headers.
+fn merge_headers(
+    batch: &Option<std::collections::HashMap<String, String>>,
+    per_request: Option<std::collections::HashMap<String, String>>,
+) -> Option<std::collections::HashMap<String, String>> {
+    match (batch, per_request) {
+        (Some(b), Some(pr)) => {
+            let mut merged = b.clone();
+            merged.extend(pr);
+            Some(merged)
+        }
+        (Some(b), None) => Some(b.clone()),
+        (None, Some(pr)) => Some(pr),
+        (None, None) => None,
     }
 }
 
 /// Make HTTP GET requests for the given URLs.
 ///
 /// Args:
-///     urls: An iterable of URL strings
+///     urls: An iterable of URL strings, or (url, headers_dict) tuples
 ///     concurrency_limit: Maximum concurrent requests (default: 1000)
 ///     timeout_secs: Request timeout in seconds (default: 30)
 ///     headers: Optional headers to send with every request
@@ -289,6 +368,11 @@ impl ClientIterator {
 ///     urls = (f"http://example.com/{i}" for i in range(100))
 ///     for response in lazynet.get(urls, headers={"User-Agent": "MyBot/1.0"}):
 ///         print(response.status, response.headers)
+///
+///     # Per-request headers via tuples:
+///     requests = ((url, {"Range": f"bytes={s}-{e}"}) for url, s, e in manifest)
+///     for response in lazynet.get(requests):
+///         print(len(response.bytes))
 #[pyfunction]
 #[pyo3(signature = (urls, concurrency_limit=1000, timeout_secs=None, headers=None))]
 fn get(
@@ -301,9 +385,17 @@ fn get(
     let lazynet = Lazynet::with_config(100, concurrency_limit, timeout);
 
     // Consume the Python iterator and send URLs to the pipeline
+    // Each item can be a plain URL string or a (url, headers_dict) tuple
     for url_result in urls.try_iter()? {
-        let url: String = url_result?.extract()?;
-        lazynet.send_with_headers(url, headers.clone());
+        let item = url_result?;
+
+        if let Ok(tuple) = item.extract::<(String, std::collections::HashMap<String, String>)>() {
+            let merged = merge_headers(&headers, Some(tuple.1));
+            lazynet.send_with_headers(tuple.0, merged);
+        } else {
+            let url: String = item.extract()?;
+            lazynet.send_with_headers(url, headers.clone());
+        }
     }
     lazynet.send_end();
 

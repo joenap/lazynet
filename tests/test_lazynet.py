@@ -1067,3 +1067,149 @@ def test_html_content_type(httpserver):
     responses = list(lazynet.get(iter([url])))
 
     assert responses[0].text == html
+
+
+# =============================================================================
+# Bytes property
+# =============================================================================
+
+
+def test_bytes_property_returns_bytes_type(httpserver):
+    """response.bytes should return Python bytes."""
+    httpserver.expect_request("/bytes-type").respond_with_data("hello")
+    url = httpserver.url_for("/bytes-type")
+
+    responses = list(lazynet.get(iter([url])))
+
+    assert isinstance(responses[0].bytes, bytes)
+    assert responses[0].bytes == b"hello"
+
+
+def test_bytes_matches_text_for_ascii(httpserver):
+    """For ASCII content, bytes should be the UTF-8 encoding of text."""
+    body = "hello world 123"
+    httpserver.expect_request("/bytes-ascii").respond_with_data(body)
+    url = httpserver.url_for("/bytes-ascii")
+
+    responses = list(lazynet.get(iter([url])))
+
+    assert responses[0].bytes == body.encode("utf-8")
+    assert responses[0].text == body
+
+
+def test_bytes_preserves_binary_data(httpserver):
+    """response.bytes should preserve raw binary data without corruption."""
+    raw = bytes(range(256))
+    httpserver.expect_request("/bytes-binary").respond_with_data(
+        raw, content_type="application/octet-stream"
+    )
+    url = httpserver.url_for("/bytes-binary")
+
+    responses = list(lazynet.get(iter([url])))
+
+    assert responses[0].bytes == raw
+    assert len(responses[0].bytes) == 256
+
+
+def test_bytes_empty_on_error():
+    """Error responses should have empty bytes."""
+    url = "http://127.0.0.1:1"
+    responses = list(lazynet.get(iter([url]), timeout_secs=1))
+
+    assert responses[0].bytes == b""
+
+
+def test_bytes_with_client(httpserver):
+    """Client.get() should also return bytes."""
+    httpserver.expect_request("/client-bytes").respond_with_data("test data")
+    url = httpserver.url_for("/client-bytes")
+
+    client = lazynet.Client()
+    responses = list(client.get(iter([url])))
+
+    assert responses[0].bytes == b"test data"
+
+
+# =============================================================================
+# Per-request headers via tuples
+# =============================================================================
+
+
+def test_per_request_headers_via_tuples(httpserver):
+    """get() should accept (url, headers_dict) tuples."""
+    httpserver.expect_request(
+        "/tuple-hdr",
+        headers={"X-Custom": "test-value"},
+    ).respond_with_data("ok")
+    url = httpserver.url_for("/tuple-hdr")
+
+    requests = iter([(url, {"X-Custom": "test-value"})])
+    responses = list(lazynet.get(requests))
+
+    assert len(responses) == 1
+    assert responses[0].status == 200
+
+
+def test_mixed_string_and_tuple_input(httpserver):
+    """get() should accept a mix of plain strings and (url, headers) tuples."""
+    httpserver.expect_request("/mix-plain").respond_with_data("plain")
+    httpserver.expect_request(
+        "/mix-tuple",
+        headers={"X-Special": "yes"},
+    ).respond_with_data("tuple")
+
+    plain_url = httpserver.url_for("/mix-plain")
+    tuple_url = httpserver.url_for("/mix-tuple")
+
+    items = iter([plain_url, (tuple_url, {"X-Special": "yes"})])
+    responses = list(lazynet.get(items))
+
+    assert len(responses) == 2
+    texts = {r.text for r in responses}
+    assert texts == {"plain", "tuple"}
+
+
+def test_batch_headers_merged_with_per_request(httpserver):
+    """Batch headers and per-request headers should merge."""
+    httpserver.expect_request(
+        "/merge-hdr",
+        headers={"X-Batch": "batch-val", "X-Per-Request": "per-val"},
+    ).respond_with_data("merged")
+    url = httpserver.url_for("/merge-hdr")
+
+    requests = iter([(url, {"X-Per-Request": "per-val"})])
+    responses = list(lazynet.get(requests, headers={"X-Batch": "batch-val"}))
+
+    assert len(responses) == 1
+    assert responses[0].status == 200
+
+
+def test_per_request_headers_override_batch(httpserver):
+    """Per-request headers should override batch headers for the same key."""
+    httpserver.expect_request(
+        "/override-hdr",
+        headers={"X-Key": "per-request"},
+    ).respond_with_data("overridden")
+    url = httpserver.url_for("/override-hdr")
+
+    requests = iter([(url, {"X-Key": "per-request"})])
+    responses = list(lazynet.get(requests, headers={"X-Key": "batch"}))
+
+    assert len(responses) == 1
+    assert responses[0].status == 200
+
+
+def test_client_per_request_headers(httpserver):
+    """Client.get() should also accept (url, headers_dict) tuples."""
+    httpserver.expect_request(
+        "/client-tuple",
+        headers={"X-Client": "yes"},
+    ).respond_with_data("client-ok")
+    url = httpserver.url_for("/client-tuple")
+
+    client = lazynet.Client()
+    requests = iter([(url, {"X-Client": "yes"})])
+    responses = list(client.get(requests))
+
+    assert len(responses) == 1
+    assert responses[0].text == "client-ok"

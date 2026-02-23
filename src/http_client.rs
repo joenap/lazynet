@@ -97,14 +97,18 @@ impl ReqwestClient {
             })
             .collect();
 
-        match resp.text().await {
-            Ok(text) => Response::success(
-                final_url,
-                status,
-                reason,
-                text,
-                Some(response_headers),
-            ),
+        match resp.bytes().await {
+            Ok(bytes) => {
+                let text = String::from_utf8_lossy(&bytes).to_string();
+                Response::success(
+                    final_url,
+                    status,
+                    reason,
+                    text,
+                    bytes.to_vec(),
+                    Some(response_headers),
+                )
+            }
             Err(e) => Response::error(url.to_string(), e.to_string()),
         }
     }
@@ -212,6 +216,7 @@ pub mod mock {
         pub status: u16,
         pub reason: String,
         pub text: String,
+        pub bytes: Vec<u8>,
         pub error: Option<String>,
         pub delay: Option<Duration>,
     }
@@ -222,7 +227,21 @@ pub mod mock {
             Self {
                 status,
                 reason: status_reason(status).to_string(),
+                bytes: text.as_bytes().to_vec(),
                 text: text.to_string(),
+                error: None,
+                delay: None,
+            }
+        }
+
+        /// Create a successful mock response with raw bytes.
+        pub fn success_bytes(status: u16, bytes: Vec<u8>) -> Self {
+            let text = String::from_utf8_lossy(&bytes).to_string();
+            Self {
+                status,
+                reason: status_reason(status).to_string(),
+                text,
+                bytes,
                 error: None,
                 delay: None,
             }
@@ -234,6 +253,7 @@ pub mod mock {
                 status: 0,
                 reason: String::new(),
                 text: String::new(),
+                bytes: Vec::new(),
                 error: Some(error.to_string()),
                 delay: None,
             }
@@ -338,6 +358,7 @@ pub mod mock {
                     mock_resp.status,
                     mock_resp.reason,
                     mock_resp.text,
+                    mock_resp.bytes,
                     None, // Mock doesn't return headers
                 ),
             }

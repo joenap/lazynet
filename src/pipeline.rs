@@ -36,6 +36,7 @@ pub struct Response {
     pub status: u16,
     pub reason: String,
     pub text: String,
+    pub bytes: Vec<u8>,
     pub error: Option<String>,
     pub headers: Option<HashMap<String, String>>,
 }
@@ -47,6 +48,7 @@ impl Response {
         status: u16,
         reason: String,
         text: String,
+        bytes: Vec<u8>,
         headers: Option<HashMap<String, String>>,
     ) -> Self {
         Response {
@@ -54,6 +56,7 @@ impl Response {
             status,
             reason,
             text,
+            bytes,
             error: None,
             headers,
         }
@@ -66,6 +69,7 @@ impl Response {
             status: 0,
             reason: String::new(),
             text: String::new(),
+            bytes: Vec::new(),
             error: Some(error),
             headers: None,
         }
@@ -411,11 +415,13 @@ mod tests {
 
         #[test]
         fn successful_response_contains_all_http_metadata() {
+            let text = r#"{"users": []}"#;
             let response = Response::success(
                 "http://api.example.com/users".to_string(),
                 200,
                 "OK".to_string(),
-                r#"{"users": []}"#.to_string(),
+                text.to_string(),
+                text.as_bytes().to_vec(),
                 None,
             );
 
@@ -423,6 +429,7 @@ mod tests {
             assert_eq!(response.status, 200);
             assert_eq!(response.reason, "OK");
             assert_eq!(response.text, r#"{"users": []}"#);
+            assert_eq!(response.bytes, text.as_bytes());
             assert!(response.error.is_none(), "Successful response should have no error");
         }
 
@@ -437,16 +444,51 @@ mod tests {
             assert_eq!(response.status, 0, "Error responses should have status 0");
             assert!(response.reason.is_empty(), "Error responses should have empty reason");
             assert!(response.text.is_empty(), "Error responses should have empty text");
+            assert!(response.bytes.is_empty(), "Error responses should have empty bytes");
             assert_eq!(response.error, Some("Connection refused".to_string()));
         }
 
         #[test]
+        fn response_bytes_field_contains_raw_data() {
+            // Binary data with invalid UTF-8 sequences
+            let raw_bytes: Vec<u8> = vec![0x00, 0x01, 0xFF, 0xFE, 0x48, 0x65, 0x6C, 0x6C, 0x6F];
+            let text = String::from_utf8_lossy(&raw_bytes).to_string();
+            let response = Response::success(
+                "http://example.com/binary".to_string(),
+                200,
+                "OK".to_string(),
+                text,
+                raw_bytes.clone(),
+                None,
+            );
+
+            assert_eq!(response.bytes, raw_bytes);
+            assert_eq!(response.bytes.len(), 9);
+            // Text should be the lossy UTF-8 version (with replacement characters)
+            assert!(response.text.contains("Hello"));
+            assert!(response.text.contains('\u{FFFD}')); // replacement character
+        }
+
+        #[test]
+        fn error_response_has_empty_bytes() {
+            let response = Response::error(
+                "http://example.com/fail".to_string(),
+                "timeout".to_string(),
+            );
+
+            assert!(response.bytes.is_empty());
+            assert_eq!(response.bytes, Vec::<u8>::new());
+        }
+
+        #[test]
         fn response_can_be_cloned_without_data_loss() {
+            let text = "Resource created";
             let original = Response::success(
                 "http://example.com".to_string(),
                 201,
                 "Created".to_string(),
-                "Resource created".to_string(),
+                text.to_string(),
+                text.as_bytes().to_vec(),
                 None,
             );
 
@@ -456,6 +498,7 @@ mod tests {
             assert_eq!(cloned.status, original.status);
             assert_eq!(cloned.reason, original.reason);
             assert_eq!(cloned.text, original.text);
+            assert_eq!(cloned.bytes, original.bytes);
             assert_eq!(cloned.error, original.error);
             assert_eq!(cloned.headers, original.headers);
         }
