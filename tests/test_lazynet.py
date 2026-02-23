@@ -1213,3 +1213,55 @@ def test_client_per_request_headers(httpserver):
 
     assert len(responses) == 1
     assert responses[0].text == "client-ok"
+
+
+def test_client_mixed_string_and_tuple_input(httpserver):
+    """Client.get() should accept a mix of plain strings and (url, headers) tuples."""
+    httpserver.expect_request("/client-mix-plain").respond_with_data("plain")
+    httpserver.expect_request(
+        "/client-mix-tuple",
+        headers={"X-Special": "yes"},
+    ).respond_with_data("tuple")
+
+    plain_url = httpserver.url_for("/client-mix-plain")
+    tuple_url = httpserver.url_for("/client-mix-tuple")
+
+    client = lazynet.Client()
+    items = iter([plain_url, (tuple_url, {"X-Special": "yes"})])
+    responses = list(client.get(items))
+
+    assert len(responses) == 2
+    texts = {r.text for r in responses}
+    assert texts == {"plain", "tuple"}
+
+
+def test_client_default_headers_merged_with_per_request(httpserver):
+    """Client default headers and per-request headers should merge."""
+    httpserver.expect_request(
+        "/client-merge",
+        headers={"X-Default": "default-val", "X-Per-Request": "per-val"},
+    ).respond_with_data("merged")
+    url = httpserver.url_for("/client-merge")
+
+    client = lazynet.Client(default_headers={"X-Default": "default-val"})
+    requests = iter([(url, {"X-Per-Request": "per-val"})])
+    responses = list(client.get(requests))
+
+    assert len(responses) == 1
+    assert responses[0].status == 200
+
+
+def test_client_per_request_headers_override_default(httpserver):
+    """Per-request headers should override Client default headers for the same key."""
+    httpserver.expect_request(
+        "/client-override",
+        headers={"X-Key": "per-request"},
+    ).respond_with_data("overridden")
+    url = httpserver.url_for("/client-override")
+
+    client = lazynet.Client(default_headers={"X-Key": "default"})
+    requests = iter([(url, {"X-Key": "per-request"})])
+    responses = list(client.get(requests))
+
+    assert len(responses) == 1
+    assert responses[0].status == 200

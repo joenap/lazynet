@@ -412,3 +412,56 @@ fn _lazynet(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(get, m)?)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    mod merge_headers_tests {
+        use super::*;
+
+        #[test]
+        fn both_none_returns_none() {
+            assert!(merge_headers(&None, None).is_none());
+        }
+
+        #[test]
+        fn batch_only_returns_batch() {
+            let batch: HashMap<String, String> =
+                [("X-Batch".into(), "val".into())].into_iter().collect();
+            let result = merge_headers(&Some(batch.clone()), None).unwrap();
+            assert_eq!(result, batch);
+        }
+
+        #[test]
+        fn per_request_only_returns_per_request() {
+            let pr: HashMap<String, String> =
+                [("X-Per".into(), "val".into())].into_iter().collect();
+            let result = merge_headers(&None, Some(pr.clone())).unwrap();
+            assert_eq!(result, pr);
+        }
+
+        #[test]
+        fn per_request_overrides_batch_for_same_key() {
+            let batch: HashMap<String, String> =
+                [("X-Key".into(), "batch".into())].into_iter().collect();
+            let pr: HashMap<String, String> =
+                [("X-Key".into(), "per-request".into())].into_iter().collect();
+            let result = merge_headers(&Some(batch), Some(pr)).unwrap();
+            assert_eq!(result.get("X-Key").unwrap(), "per-request");
+        }
+
+        #[test]
+        fn disjoint_headers_are_merged() {
+            let batch: HashMap<String, String> =
+                [("X-Batch".into(), "b".into())].into_iter().collect();
+            let pr: HashMap<String, String> =
+                [("X-Per".into(), "p".into())].into_iter().collect();
+            let result = merge_headers(&Some(batch), Some(pr)).unwrap();
+            assert_eq!(result.len(), 2);
+            assert_eq!(result.get("X-Batch").unwrap(), "b");
+            assert_eq!(result.get("X-Per").unwrap(), "p");
+        }
+    }
+}
