@@ -80,9 +80,11 @@ impl Response {
 ///
 /// Owns a tokio runtime and channels for sending requests and receiving responses.
 pub struct Lazynet {
-    _rt: tokio::runtime::Runtime,
     cross_request_sender: crossbeam_channel::Sender<RequestMsg>,
     cross_response_receiver: crossbeam_channel::Receiver<ResponseMsg>,
+    // Declared last so the channels drop first, unblocking the bridge threads
+    // before the runtime waits for them.
+    _rt: tokio::runtime::Runtime,
 }
 
 /// Shared HTTP client with its own runtime for connection pooling.
@@ -371,16 +373,20 @@ async fn async_http_client_task<C: HttpClient>(
 }
 
 /// Bridge from async tokio channel back to sync crossbeam channel.
+/// Runs on a blocking thread so a full crossbeam channel never blocks an async worker.
 async fn async_response_task(
     mut async_response_receiver: tokio::sync::mpsc::Receiver<ResponseMsg>,
     cross_response_sender: crossbeam_channel::Sender<ResponseMsg>,
 ) {
-    while let Some(msg) = async_response_receiver.recv().await {
-        let is_end = matches!(msg, ResponseMsg::End);
-        if cross_response_sender.send(msg).is_err() || is_end {
-            break;
+    let _ = tokio::task::spawn_blocking(move || {
+        while let Some(msg) = async_response_receiver.blocking_recv() {
+            let is_end = matches!(msg, ResponseMsg::End);
+            if cross_response_sender.send(msg).is_err() || is_end {
+                break;
+            }
         }
-    }
+    })
+    .await;
 }
 
 // =============================================================================
@@ -1401,6 +1407,23 @@ mod tests {
                 "All in-flight requests should complete before shutdown"
             );
             assert_eq!(mock.request_count(), 20);
+        }
+
+        #[test]
+        fn dropping_pipeline_with_unread_responses_does_not_hang() {
+            // Product requirement: Abandoning iteration early releases the pipeline
+            let mock = MockHttpClient::new()
+                .with_default(MockResponse::success(200, ""));
+
+            let pipeline = Lazynet::with_http_client(mock, 10, 100);
+
+            for i in 0..500 {
+                pipeline.send(format!("http://example.com/{}", i));
+            }
+            pipeline.send_end();
+
+            assert!(pipeline.recv().is_some());
+            drop(pipeline);
         }
     }
 
