@@ -547,6 +547,27 @@ mod tests {
         }
 
         #[test]
+        fn non_utf8_body_passes_through_pipeline_unchanged() {
+            // Product requirement: Binary bodies are available byte-for-byte
+            let raw_bytes: Vec<u8> = vec![0x00, 0x01, 0xFF, 0xFE, 0x48, 0x65, 0x6C, 0x6C, 0x6F];
+            let mock = MockHttpClient::new().with_response(
+                "http://example.com/binary",
+                MockResponse::success_bytes(200, raw_bytes.clone()),
+            );
+
+            let pipeline = Lazynet::with_http_client(mock.clone(), 100, 1000);
+            pipeline.send("http://example.com/binary".to_string());
+            pipeline.send_end();
+
+            let response = pipeline.recv().expect("Should receive one response");
+            assert_eq!(response.status, 200);
+            assert_eq!(response.bytes, raw_bytes);
+            assert_eq!(response.text, String::from_utf8_lossy(&raw_bytes));
+
+            assert!(pipeline.recv().is_none(), "Should have no more responses");
+        }
+
+        #[test]
         fn multiple_urls_return_same_number_of_responses() {
             // Product requirement: One response per URL
             let mock = MockHttpClient::new()
