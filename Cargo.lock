@@ -540,7 +540,7 @@ dependencies = [
 
 [[package]]
 name = "lazynet"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "crossbeam-channel",
  "pyo3",
