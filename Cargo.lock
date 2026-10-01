@@ -544,6 +544,7 @@ version = "0.8.2"
 dependencies = [
  "crossbeam-channel",
  "pyo3",
+ "pyo3-build-config",
  "reqwest",
  "serde",
  "serde_json",

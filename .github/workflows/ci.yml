@@ -37,6 +37,9 @@ jobs:
           uv sync --group dev
           uv run maturin develop
 
+      - name: Run Rust tests
+        run: uv run cargo test
+
       - name: Run Python tests
         run: uv run pytest tests/ -v --ignore=tests/test_perf.py
 

@@ -15,6 +15,7 @@ dev:
 
 # Run tests
 test:
+	uv run cargo test
 	uv run pytest
 
 # Check style
